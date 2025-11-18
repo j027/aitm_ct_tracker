@@ -4,6 +4,7 @@ import os
 import re
 import requests
 import websocket
+import time
 from dotenv import load_dotenv
 
 # ============================================================
@@ -24,6 +25,10 @@ DOMAIN_REGEX = re.compile(r"^api-[0-9a-fA-F]{4,}[.\-].*$", re.IGNORECASE)
 
 SEEN_DOMAINS_LIMIT = 10000
 seen_domains = set()
+
+# Stats tracking
+cert_count = 0
+last_stats_time = time.time()
 
 
 # ============================================================
@@ -75,8 +80,16 @@ def process_message(message_str):
     if not all_domains:
         return
 
-    # Debug: prove we are seeing traffic
-    print(f"[DEBUG] SANs: {all_domains[:5]}{' ...' if len(all_domains) > 5 else ''}")
+    # Update stats
+    global cert_count, last_stats_time
+    cert_count += 1
+    
+    # Print stats every 60 seconds
+    current_time = time.time()
+    if current_time - last_stats_time >= 60:
+        print(f"[*] Processed {cert_count} certificates in the last minute")
+        cert_count = 0
+        last_stats_time = current_time
 
     global seen_domains
     for d in all_domains:
@@ -141,7 +154,7 @@ def main():
     )
     
     # Run forever with auto-reconnect
-    ws.run_forever()
+    ws.run_forever(ping_interval=30, ping_timeout=10)
 
 
 if __name__ == "__main__":

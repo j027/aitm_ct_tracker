@@ -17,11 +17,11 @@ if not DISCORD_WEBHOOK:
     raise RuntimeError("DISCORD_WEBHOOK is not set in the environment or .env file")
 
 # Updated pattern to match:
-# api-<4+ hex chars>... (to catch both short RIT-style and standard UCSB-style)
+# api-<5 or 8 hex chars>... (to catch both short RIT-style and standard UCSB-style)
 # Examples:
 #   api-3dse1.rata.littlenuggetsco.com (RIT, shorter)
 #   api-529aed63.ucsb.littlenuggetsco.com (UCSB, standard)
-DOMAIN_REGEX = re.compile(r"^api-[0-9a-fA-F]{4,}[.\-].*$", re.IGNORECASE)
+DOMAIN_REGEX = re.compile(r"^api-([0-9a-fA-F]{5}|[0-9a-fA-F]{8})[.\-]", re.IGNORECASE)
 
 SEEN_DOMAINS_LIMIT = 10000
 seen_domains = set()

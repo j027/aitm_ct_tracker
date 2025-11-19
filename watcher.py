@@ -5,6 +5,7 @@ import re
 import requests
 import websocket
 import time
+import subprocess
 from dotenv import load_dotenv
 
 # ============================================================
@@ -29,9 +30,75 @@ DOMAIN_REGEX = re.compile(
 SEEN_DOMAINS_LIMIT = 10000
 seen_domains = set()
 
+# Track already alerted domains to avoid duplicate notifications
+alerted_domains = set()
+ALERTED_DOMAINS_LIMIT = 10000
+
 # Stats tracking
 cert_count = 0
 last_stats_time = time.time()
+
+
+# ============================================================
+# DOMAIN CHECKS
+# ============================================================
+
+def check_nameservers(domain):
+    """Check if domain uses Cloudflare nameservers. Returns True if Cloudflare detected."""
+    try:
+        # Extract base domain (e.g., ucsb.littlenuggetsco.com -> littlenuggetsco.com)
+        parts = domain.split('.')
+        if len(parts) >= 2:
+            base_domain = '.'.join(parts[-2:])
+        else:
+            base_domain = domain
+        
+        # Get nameservers using dig
+        result = subprocess.run(
+            ["dig", "+short", "NS", base_domain],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        nameservers = result.stdout.lower()
+        if "cloudflare" in nameservers or "ns.cloudflare.com" in nameservers:
+            print(f"[~] Cloudflare nameservers detected for {domain}, skipping alert")
+            return True
+            
+    except Exception as e:
+        print(f"[!] Error checking nameservers for {domain}: {e}")
+    
+    return False
+
+
+def check_godaddy_registrar(domain):
+    """Check if domain is registered with GoDaddy via whois. Returns True if GoDaddy detected."""
+    try:
+        # Extract base domain
+        parts = domain.split('.')
+        if len(parts) >= 2:
+            base_domain = '.'.join(parts[-2:])
+        else:
+            base_domain = domain
+        
+        # Run whois command
+        result = subprocess.run(
+            ["whois", base_domain],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        whois_output = result.stdout.lower()
+        if "godaddy" in whois_output or "wild west domains" in whois_output:
+            print(f"[~] GoDaddy registrar detected for {domain}, skipping alert")
+            return True
+            
+    except Exception as e:
+        print(f"[!] Error checking whois for {domain}: {e}")
+    
+    return False
 
 
 # ============================================================
@@ -94,11 +161,11 @@ def process_message(message_str):
         cert_count = 0
         last_stats_time = current_time
 
-    global seen_domains
+    global seen_domains, alerted_domains
     for d in all_domains:
         domain = d.strip().lower()
 
-        # Dedupe
+        # Dedupe certificate processing
         if domain in seen_domains:
             continue
         if len(seen_domains) > SEEN_DOMAINS_LIMIT:
@@ -107,8 +174,30 @@ def process_message(message_str):
 
         # Pattern match
         if DOMAIN_REGEX.match(domain):
-            print(f"[+] Match: {domain}")
-            send_discord_alert(domain, all_domains, source="local-certstream")
+            # Check if already alerted
+            if domain in alerted_domains:
+                continue
+            
+            print(f"[+] Potential match: {domain}")
+            
+            # Check for GoDaddy registrar (attacker indicator)
+            if check_godaddy_registrar(domain):
+                if len(alerted_domains) > ALERTED_DOMAINS_LIMIT:
+                    alerted_domains.clear()
+                alerted_domains.add(domain)
+                send_discord_alert(domain, all_domains, source="local-certstream")
+                continue
+            
+            # Check for Cloudflare nameservers (attacker indicator)
+            if check_nameservers(domain):
+                if len(alerted_domains) > ALERTED_DOMAINS_LIMIT:
+                    alerted_domains.clear()
+                alerted_domains.add(domain)
+                send_discord_alert(domain, all_domains, source="local-certstream")
+                continue
+            
+            # If neither indicator found, skip (likely legitimate)
+            print(f"[~] No attacker indicators found for {domain}, skipping alert")
 
 
 # ============================================================

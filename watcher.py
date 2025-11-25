@@ -38,6 +38,59 @@ ALERTED_DOMAINS_LIMIT = 10000
 cert_count = 0
 last_stats_time = time.time()
 
+# Known attacker domains (loaded from file)
+known_attacker_domains = set()
+
+
+# ============================================================
+# KNOWN ATTACKER DOMAINS
+# ============================================================
+
+def load_known_attacker_domains(filepath="known_domains.txt"):
+    """Load known attacker domains from file and un-defang them.
+    Expected format: one domain per line, defanged like littlenuggetsco[.]com
+    """
+    domains = set()
+    if not os.path.exists(filepath):
+        print(f"[*] No known domains file found at {filepath}")
+        return domains
+    
+    try:
+        with open(filepath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                # Un-defang: replace [.] with .
+                domain = line.replace('[.]', '.').replace('[dot]', '.').lower()
+                domains.add(domain)
+        print(f"[*] Loaded {len(domains)} known attacker domains")
+    except Exception as e:
+        print(f"[!] Error loading known domains: {e}")
+    
+    return domains
+
+
+def is_known_attacker_domain(domain, known_domains):
+    """Check if domain or its base domain matches known attacker domains."""
+    domain = domain.lower().strip()
+    
+    # Check if exact match
+    if domain in known_domains:
+        return True
+    
+    # Check if base domain matches
+    parts = domain.split('.')
+    if len(parts) >= 2:
+        # Check all possible base domains
+        # e.g., for api.sub.example.com, check sub.example.com and example.com
+        for i in range(len(parts) - 1):
+            base = '.'.join(parts[i:])
+            if base in known_domains:
+                return True
+    
+    return False
+
 
 # ============================================================
 # DOMAIN CHECKS
@@ -160,7 +213,7 @@ def process_message(message_str):
         cert_count = 0
         last_stats_time = current_time
 
-    global seen_domains, alerted_domains
+    global seen_domains, alerted_domains, known_attacker_domains
     for d in all_domains:
         domain = d.strip().lower()
 
@@ -170,6 +223,19 @@ def process_message(message_str):
         if len(seen_domains) > SEEN_DOMAINS_LIMIT:
             seen_domains.clear()
         seen_domains.add(domain)
+
+        # Check for known attacker domains first (highest priority)
+        if is_known_attacker_domain(domain, known_attacker_domains):
+            # Check if already alerted
+            if domain in alerted_domains:
+                continue
+            
+            print(f"[!] KNOWN ATTACKER DOMAIN DETECTED: {domain}")
+            if len(alerted_domains) > ALERTED_DOMAINS_LIMIT:
+                alerted_domains.clear()
+            alerted_domains.add(domain)
+            send_discord_alert(domain, all_domains)
+            continue
 
         # Pattern match
         if DOMAIN_REGEX.match(domain):
@@ -231,6 +297,10 @@ def main():
     if not DISCORD_WEBHOOK:
         print("[!] Discord webhook URL not set; cannot send alert.")
         raise RuntimeError("DISCORD_WEBHOOK is not set in the environment or .env file")
+    
+    # Load known attacker domains
+    global known_attacker_domains
+    known_attacker_domains = load_known_attacker_domains("known_domains.txt")
     
     print("[*] Starting CertStream watcher (local certstream-server-go)...")
     print("[*] Connecting to ws://127.0.0.1:8080/ ...")

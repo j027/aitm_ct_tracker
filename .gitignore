@@ -2,3 +2,4 @@
 .venv/
 config.yaml
 ct_index.json
+known_domains.txt

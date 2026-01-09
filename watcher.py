@@ -6,6 +6,7 @@ import requests
 import websocket
 import time
 import subprocess
+from urllib.parse import quote
 from dotenv import load_dotenv
 
 # ============================================================
@@ -43,6 +44,9 @@ known_attacker_domains = set()
 
 # Target organizations mapping (loaded from JSON)
 target_mapping = {}
+
+# Email template (loaded from file)
+email_template = ""
 
 
 # ============================================================
@@ -199,6 +203,58 @@ def check_godaddy_registrar(domain):
 # DISCORD ALERTING
 # ============================================================
 
+def load_email_template(filepath="email_template.txt"):
+    """Load email body template from file. Returns default template if file not found."""
+    default_template = """To the Security Team,
+
+I detected new SSL certificate registrations matching known AitM phishing patterns targeting your organization.
+
+IOCs:
+{IOCS_LIST}
+
+Context: Likely staging for a credential harvesting campaign. Recommended block on network edge.
+
+Regards"""
+    
+    if not os.path.exists(filepath):
+        print(f"[*] No email template found at {filepath}, using default")
+        return default_template
+    
+    try:
+        with open(filepath, 'r') as f:
+            return f.read()
+    except Exception as e:
+        print(f"[!] Error loading email template: {e}, using default")
+        return default_template
+
+
+def generate_mailto_link(target_info, domain, all_domains, email_template, is_known_attacker=False):
+    """Generate a mailto link with pre-filled threat intel email."""
+    # Determine recipient email and org name
+    if target_info:
+        to_email = target_info['email']
+        org_name = target_info['name']
+    else:
+        to_email = "INSERT_TARGET_EMAIL"
+        org_name = "INSERT_ORG_NAME"
+    
+    # Build subject
+    subject = f"[Threat Intel] Phishing infrastructure detected targeting {org_name}"
+    
+    # Build IOCs list (defanged)
+    iocs_list = "\n".join([defang_domain(d) for d in all_domains[:50]])
+    if len(all_domains) > 50:
+        iocs_list += f"\n... and {len(all_domains) - 50} more domains"
+    
+    # Build email body from template
+    body = email_template.replace("{IOCS_LIST}", iocs_list)
+    
+    # URL encode the parameters
+    mailto_url = f"mailto:{to_email}?subject={quote(subject)}&body={quote(body)}"
+    
+    return mailto_url
+
+
 def send_discord_alert(domain, all_domains, cert_timestamp=None, is_known_attacker=False):
 
     # this should not happen, but just in case
@@ -277,6 +333,14 @@ def send_discord_alert(domain, all_domains, cert_timestamp=None, is_known_attack
     embed["fields"].append({
         "name": "All Domains in Certificate",
         "value": f"```\n{domains_block}\n```",
+        "inline": False
+    })
+    
+    # Add mailto link for one-click email
+    mailto_link = generate_mailto_link(target_info, domain, all_domains, email_template, is_known_attacker)
+    embed["fields"].append({
+        "name": "📧 Send Notification",
+        "value": f"[Click here to send threat intel email]({mailto_link})",
         "inline": False
     })
     
@@ -416,10 +480,11 @@ def main():
         print("[!] Discord webhook URL not set; cannot send alert.")
         raise RuntimeError("DISCORD_WEBHOOK is not set in the environment or .env file")
     
-    # Load known attacker domains
-    global known_attacker_domains, target_mapping
+    # Load known attacker domains, targets, and email template
+    global known_attacker_domains, target_mapping, email_template
     known_attacker_domains = load_known_attacker_domains("known_domains.txt")
     target_mapping = load_target_mapping("targets.json")
+    email_template = load_email_template("email_template.txt")
     
     print("[*] Starting CertStream watcher (local certstream-server-go)...")
     print("[*] Connecting to ws://127.0.0.1:8080/ ...")

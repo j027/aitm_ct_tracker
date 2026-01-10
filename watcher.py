@@ -82,7 +82,7 @@ def extract_hex_id(domain):
     """Extract the hex ID from a domain matching our pattern.
     Returns the hex ID (5 or 8 chars) or None if not found.
     """
-    match = re.match(r"^api-([0-9a-fA-F]{5}|[0-9a-fA-F]{8})", domain, re.IGNORECASE)
+    match = re.match(r"^api-([0-9a-fA-F]{8}|[0-9a-fA-F]{5})", domain, re.IGNORECASE)
     if match:
         return match.group(1).lower()
     return None

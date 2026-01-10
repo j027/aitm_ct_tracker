@@ -254,9 +254,9 @@ def generate_mailto_link(target_info, domain, all_domains, email_template, is_kn
     subject = f"[Threat Intel] Phishing infrastructure detected targeting {org_name}"
     
     # Build IOCs list (defanged)
-    iocs_list = "\n".join([defang_domain(d) for d in all_domains[:50]])
+    iocs_list = "\r\n".join([defang_domain(d) for d in all_domains[:50]])
     if len(all_domains) > 50:
-        iocs_list += f"\n... and {len(all_domains) - 50} more domains"
+        iocs_list += f"\r\n... and {len(all_domains) - 50} more domains"
     
     # Build email body from template
     body = email_template.replace("{IOCS_LIST}", iocs_list)

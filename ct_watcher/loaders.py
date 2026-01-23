@@ -85,14 +85,21 @@ def load_email_template(filepath: str = EMAIL_TEMPLATE_FILE) -> str:
 
 def load_attacker_ips(filepath: str = ATTACKER_IPS_FILE) -> Dict[str, Any]:
     """Load attacker IPs from JSON file."""
+    default_structure = {"ips": {}, "last_updated": None}
+    
     if not os.path.exists(filepath):
-        return {"ips": {}, "last_updated": None}
+        return default_structure
     
     try:
         with open(filepath, 'r') as f:
             data = json.load(f)
+        # Ensure the expected structure exists
+        if "ips" not in data:
+            data["ips"] = {}
+        if "last_updated" not in data:
+            data["last_updated"] = None
         print(f"[*] Loaded {len(data.get('ips', {}))} tracked attacker IPs")
         return data
     except Exception as e:
         print(f"[!] Error loading attacker IPs: {e}")
-        return {"ips": {}, "last_updated": None}
+        return default_structure

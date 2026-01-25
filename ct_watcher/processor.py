@@ -96,16 +96,20 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     all_ips, non_cdn_ips = get_attacker_ips_for_domain(domain)
     
     # Determine confidence level
-    # High confidence if:
-    # 1. The extracted ID matches a known target
-    # 2. The registrar is GoDaddy/Namecheap (commonly used by attackers)
-    # 3. The ID is 8 chars (hex) - more specific pattern
+    # High confidence only if:
+    # 1. The extracted ID matches a known target (in target_mapping), OR
+    # 2. Registrar is GoDaddy/Namecheap AND Cloudflare nameservers AND multiple domains
+    # 
+    # All unknown 5-char and 8-char IDs are treated as low confidence to avoid alert fatigue
     api_id = extract_target_id(domain)
     is_known_target = api_id and api_id in state.target_mapping
     is_suspicious_registrar = _is_high_confidence_registrar(registrar)
-    is_8char_hex = api_id and len(api_id) == 8
     
-    high_confidence = bool(is_known_target or is_suspicious_registrar or is_8char_hex)
+    # High confidence requires known target OR all three conditions (registrar + CF + multidomain)
+    high_confidence = bool(
+        is_known_target or 
+        (is_suspicious_registrar and is_cloudflare and len(all_domains) > 1)
+    )
     
     confidence_str = "HIGH" if high_confidence else "LOW"
     cf_status = "Cloudflare" if is_cloudflare else "Non-Cloudflare"
@@ -113,10 +117,10 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     
     if is_known_target and api_id:
         print(f"    -> Known target: {state.target_mapping[api_id]['name']}")
-    if is_suspicious_registrar:
-        print(f"    -> Suspicious registrar: {registrar}")
-    if is_8char_hex:
-        print(f"    -> 8-char hex ID: {api_id}")
+    elif is_suspicious_registrar and is_cloudflare:
+        print(f"    -> Suspicious pattern: {registrar} + Cloudflare nameservers")
+    elif api_id:
+        print(f"    -> Unknown ID: {api_id} (low confidence - manual review)")
     
     # Mark as alerted
     if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:

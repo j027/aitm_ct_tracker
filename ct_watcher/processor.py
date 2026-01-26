@@ -98,17 +98,18 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     # Determine confidence level
     # High confidence only if:
     # 1. The extracted ID matches a known target (in target_mapping), OR
-    # 2. Registrar is GoDaddy/Namecheap AND Cloudflare nameservers AND multiple domains
+    # 2. Registrar is GoDaddy/Namecheap AND Cloudflare nameservers AND multiple domains AND 8-char hex ID
     # 
-    # All unknown 5-char and 8-char IDs are treated as low confidence to avoid alert fatigue
+    # Unknown 5-char alphanumeric IDs are always low confidence to avoid alert fatigue
     api_id = extract_target_id(domain)
     is_known_target = api_id and api_id in state.target_mapping
     is_suspicious_registrar = _is_high_confidence_registrar(registrar)
+    is_8char_hex = api_id and len(api_id) == 8 and all(c in '0123456789abcdef' for c in api_id)
     
-    # High confidence requires known target OR all three conditions (registrar + CF + multidomain)
+    # High confidence requires known target OR (all three conditions + 8-char hex ID)
     high_confidence = bool(
         is_known_target or 
-        (is_suspicious_registrar and is_cloudflare and len(all_domains) > 1)
+        (is_suspicious_registrar and is_cloudflare and len(all_domains) > 1 and is_8char_hex)
     )
     
     confidence_str = "HIGH" if high_confidence else "LOW"

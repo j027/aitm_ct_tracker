@@ -2,6 +2,7 @@
 
 import json
 import os
+import ipaddress
 from typing import Dict, Set, Any
 
 from .config import (
@@ -9,6 +10,7 @@ from .config import (
     TARGETS_FILE,
     EMAIL_TEMPLATE_FILE,
     ATTACKER_IPS_FILE,
+    KNOWN_IPS_FILE,
 )
 
 DEFAULT_EMAIL_TEMPLATE = """To the Security Team,
@@ -103,3 +105,36 @@ def load_attacker_ips(filepath: str = ATTACKER_IPS_FILE) -> Dict[str, Any]:
     except Exception as e:
         print(f"[!] Error loading attacker IPs: {e}")
         return default_structure
+
+
+def load_known_attacker_ips(filepath: str = KNOWN_IPS_FILE) -> Set[str]:
+    """Load manually curated confirmed attacker IPs from file.
+
+    Expected format: one IP per line, comments allowed with '#'.
+    """
+    known_ips: Set[str] = set()
+    if not os.path.exists(filepath):
+        print(f"[*] No known attacker IP file found at {filepath}")
+        return known_ips
+
+    invalid_count = 0
+    try:
+        with open(filepath, 'r') as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith('#'):
+                    continue
+
+                try:
+                    ip = ipaddress.ip_address(line)
+                    known_ips.add(str(ip))
+                except ValueError:
+                    invalid_count += 1
+
+        print(f"[*] Loaded {len(known_ips)} confirmed attacker IPs")
+        if invalid_count:
+            print(f"[~] Skipped {invalid_count} invalid IP entries in {filepath}")
+    except Exception as e:
+        print(f"[!] Error loading known attacker IPs: {e}")
+
+    return known_ips

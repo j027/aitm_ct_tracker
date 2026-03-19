@@ -8,3 +8,4 @@ email_template.txt
 attacker_ips.json
 *.pyc
 __pycache__/
+known_ips.txt

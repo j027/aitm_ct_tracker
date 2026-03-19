@@ -14,7 +14,6 @@ from .config import (
     HIGH_CONFIDENCE_REGISTRARS,
 )
 from .state import state
-from .domain_checks import is_known_attacker_domain, get_nameservers, get_domain_registrar
 from .domain_checks import is_known_attacker_domain, get_nameservers, get_domain_info
 from .ip_tracking import get_attacker_ips_for_domain
 from .discord import send_discord_alert
@@ -49,6 +48,7 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
     
     # Resolve and track IP addresses
     all_ips, non_cdn_ips = get_attacker_ips_for_domain(domain)
+    confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
     
     print(f"[!] KNOWN ATTACKER DOMAIN DETECTED: {domain} (Registrar: {registrar}, IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})")
     
@@ -71,6 +71,7 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
         nameservers=nameservers_list,
         all_ips=all_ips,
         non_cdn_ips=non_cdn_ips,
+        confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
         high_confidence=True,
         reg_date=reg_date
     )
@@ -96,6 +97,7 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     
     # Resolve and track IP addresses
     all_ips, non_cdn_ips = get_attacker_ips_for_domain(domain)
+    confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
     
     # Determine confidence level
     # High confidence only if:
@@ -108,10 +110,12 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     is_suspicious_registrar = _is_high_confidence_registrar(registrar)
     is_8char_hex = api_id and len(api_id) == 8 and all(c in '0123456789abcdef' for c in api_id)
     
-    # High confidence requires known target OR (all three conditions + 8-char hex ID)
+    # High confidence requires known target OR a suspicious infra pattern OR a confirmed IP match.
+    has_confirmed_attacker_ip_match = bool(confirmed_attacker_ip_matches)
     high_confidence = bool(
         is_known_target or 
-        (is_suspicious_registrar and is_cloudflare and len(all_domains) > 1 and is_8char_hex)
+        (is_suspicious_registrar and is_cloudflare and len(all_domains) > 1 and is_8char_hex) or
+        has_confirmed_attacker_ip_match
     )
     
     confidence_str = "HIGH" if high_confidence else "LOW"
@@ -120,6 +124,8 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     
     if is_known_target and api_id:
         print(f"    -> Known target: {state.target_mapping[api_id]['name']}")
+    elif has_confirmed_attacker_ip_match:
+        print(f"    -> Escalated to HIGH via known attacker IP match: {', '.join(confirmed_attacker_ip_matches)}")
     elif is_suspicious_registrar and is_cloudflare:
         print(f"    -> Suspicious pattern: {registrar} + Cloudflare nameservers")
     elif api_id:
@@ -143,6 +149,7 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         nameservers=nameservers_list,
         all_ips=all_ips,
         non_cdn_ips=non_cdn_ips,
+        confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
         high_confidence=high_confidence,
         reg_date=reg_date
     )

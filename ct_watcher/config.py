@@ -94,6 +94,7 @@ ALERTED_CERTIFICATES_LIMIT = 10000
 
 # File paths
 ATTACKER_IPS_FILE = "attacker_ips.json"
+KNOWN_IPS_FILE = "known_ips.txt"
 KNOWN_DOMAINS_FILE = "known_domains.txt"
 TARGETS_FILE = "targets.json"
 EMAIL_TEMPLATE_FILE = "email_template.txt"

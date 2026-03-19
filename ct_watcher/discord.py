@@ -188,6 +188,7 @@ def build_embed(
     nameservers: Optional[List[str]] = None,
     all_ips: Optional[List[str]] = None,
     non_cdn_ips: Optional[List[str]] = None,
+    confirmed_attacker_ip_matches: Optional[List[str]] = None,
     reg_date: Optional[str] = None
 ) -> Dict[str, Any]:
     """Build Discord embed for alert."""
@@ -316,6 +317,16 @@ def build_embed(
                 "value": "All IPs are CDN - do not block!",
                 "inline": True
             })
+
+    if confirmed_attacker_ip_matches:
+        matched_ips = "\n".join(confirmed_attacker_ip_matches[:20])
+        if len(confirmed_attacker_ip_matches) > 20:
+            matched_ips += f"\n... and {len(confirmed_attacker_ip_matches) - 20} more"
+        embed["fields"].append({
+            "name": "🧨 Confirmed Attacker IP Match",
+            "value": f"```\n{matched_ips}\n```",
+            "inline": False
+        })
     
     # Add all domains in code block
     embed["fields"].append({
@@ -345,6 +356,7 @@ def _build_minimal_embed(
     all_domains: List[str],
     registrar: Optional[str],
     cert_timestamp: Optional[float],
+    confirmed_attacker_ip_matches: Optional[List[str]],
     reg_date: Optional[str]
 ) -> Dict[str, Any]:
     """Build a compact fallback embed when Discord rejects the full payload."""
@@ -366,6 +378,12 @@ def _build_minimal_embed(
     ]
     if reg_date:
         fields.append({"name": "📅 Domain Registered", "value": reg_date, "inline": True})
+    if confirmed_attacker_ip_matches:
+        fields.append({
+            "name": "🧨 Confirmed Attacker IP Match",
+            "value": ", ".join(confirmed_attacker_ip_matches[:5]),
+            "inline": False,
+        })
 
     mailto_link = generate_mailto_link(None, domain, all_domains, None)
     actions = [f"[Email threat intel]({mailto_link})"]
@@ -393,6 +411,7 @@ def send_discord_alert(
     nameservers: Optional[List[str]] = None,
     all_ips: Optional[List[str]] = None,
     non_cdn_ips: Optional[List[str]] = None,
+    confirmed_attacker_ip_matches: Optional[List[str]] = None,
     high_confidence: bool = True,
     reg_date: Optional[str] = None
 ) -> None:
@@ -415,7 +434,8 @@ def send_discord_alert(
     
     embed = build_embed(
         domain, all_domains, cert_timestamp, is_known_attacker,
-        registrar, is_cloudflare, nameservers, all_ips, non_cdn_ips, reg_date
+        registrar, is_cloudflare, nameservers, all_ips, non_cdn_ips,
+        confirmed_attacker_ip_matches, reg_date
     )
     
     # Mark low-confidence alerts visually
@@ -441,6 +461,7 @@ def send_discord_alert(
                     all_domains=all_domains,
                     registrar=registrar,
                     cert_timestamp=cert_timestamp,
+                    confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
                     reg_date=reg_date,
                 )
                 minimal_payload: Dict[str, Any] = {"embeds": [minimal_embed]}

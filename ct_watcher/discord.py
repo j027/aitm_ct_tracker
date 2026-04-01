@@ -127,6 +127,7 @@ def _sanitize_embed(embed: Dict[str, Any]) -> Dict[str, Any]:
             "Cloudflare Nameservers",
             "Blockable IPs",
             "⚠️ CDN Warning",
+            "🐦 Tweet @Namecheap",
         }
         embed["fields"] = [
             f for f in embed.get("fields", [])
@@ -343,18 +344,20 @@ def build_embed(
         "inline": False
     })
     
-    # Add actions. Tweet action is Namecheap-only and domains-only to keep size low.
+    # Add actions. Email and tweet links get separate fields to avoid 1024-char truncation.
     mailto_link = generate_mailto_link(target_info, domain, all_domains, non_cdn_ips)
-    actions = [f"[Email threat intel]({mailto_link})"]
-    if _is_namecheap_registrar(registrar):
-        tweet_link = _build_namecheap_tweet_link(all_domains)
-        actions.append(f"[Tweet to @Namecheap]({tweet_link})")
-
     embed["fields"].append({
         "name": "📣 Actions",
-        "value": " | ".join(actions),
+        "value": f"[Email threat intel]({mailto_link})",
         "inline": False
     })
+    if _is_namecheap_registrar(registrar):
+        tweet_link = _build_namecheap_tweet_link(all_domains)
+        embed["fields"].append({
+            "name": "🐦 Tweet @Namecheap",
+            "value": f"[Tweet to @Namecheap]({tweet_link})",
+            "inline": False
+        })
 
     return _sanitize_embed(embed)
 
@@ -394,11 +397,10 @@ def _build_minimal_embed(
         })
 
     mailto_link = generate_mailto_link(None, domain, all_domains, None)
-    actions = [f"[Email threat intel]({mailto_link})"]
+    fields.append({"name": "📣 Actions", "value": f"[Email threat intel]({mailto_link})", "inline": False})
     if _is_namecheap_registrar(registrar):
         tweet_link = _build_namecheap_tweet_link(all_domains)
-        actions.append(f"[Tweet to @Namecheap]({tweet_link})")
-    fields.append({"name": "📣 Actions", "value": " | ".join(actions), "inline": False})
+        fields.append({"name": "🐦 Tweet @Namecheap", "value": f"[Tweet to @Namecheap]({tweet_link})", "inline": False})
 
     minimal = {
         "title": "⚠️ CT Alert (Compact)",

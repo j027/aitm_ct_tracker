@@ -6,7 +6,7 @@ import requests
 from typing import List, Dict, Any, Optional
 from urllib.parse import quote, urlencode
 
-from .config import DISCORD_WEBHOOK, SECOND_DISCORD_WEBHOOK
+from .config import DISCORD_WEBHOOK
 from .state import state
 from .utils import defang_domain, extract_target_id
 
@@ -422,23 +422,11 @@ def send_discord_alert(
     all_ips: Optional[List[str]] = None,
     non_cdn_ips: Optional[List[str]] = None,
     confirmed_attacker_ip_matches: Optional[List[str]] = None,
-    high_confidence: bool = True,
     reg_date: Optional[str] = None,
     email_status: Optional[str] = None,
 ) -> None:
-    """Send alert to Discord webhook.
-    
-    Args:
-        high_confidence: If True, sends to main webhook. If False, sends to
-                        second webhook (for manual review) with notifications suppressed.
-    """
-    # Choose webhook based on confidence level
-    if high_confidence:
-        webhook_url = DISCORD_WEBHOOK
-    else:
-        # Use second webhook for low-confidence alerts, fall back to main if not set
-        webhook_url = SECOND_DISCORD_WEBHOOK or DISCORD_WEBHOOK
-    
+    """Send alert to Discord webhook."""
+    webhook_url = DISCORD_WEBHOOK
     if not webhook_url:
         print("[!] Discord webhook URL not set; cannot send alert.")
         return
@@ -449,17 +437,7 @@ def send_discord_alert(
         confirmed_attacker_ip_matches, reg_date, email_status
     )
     
-    # Mark low-confidence alerts visually
-    if not high_confidence:
-        embed["title"] = "🔍 Manual Review: " + embed.get("title", "Alert")
-        embed["color"] = 0x808080  # Gray for low confidence
-        embed["footer"] = {"text": "Low confidence - manual review required"}
-    
     payload: Dict[str, Any] = {"embeds": [embed]}
-    
-    # Suppress notifications for low-confidence alerts
-    if not high_confidence:
-        payload["flags"] = 4096  # SUPPRESS_NOTIFICATIONS flag
 
     try:
         resp = requests.post(webhook_url, json=payload, timeout=10)
@@ -476,8 +454,6 @@ def send_discord_alert(
                     reg_date=reg_date,
                 )
                 minimal_payload: Dict[str, Any] = {"embeds": [minimal_embed]}
-                if not high_confidence:
-                    minimal_payload["flags"] = 4096
                 retry_resp = requests.post(webhook_url, json=minimal_payload, timeout=10)
                 if retry_resp.status_code >= 300:
                     print(f"[!] Discord fallback webhook error {retry_resp.status_code}: {retry_resp.text}")

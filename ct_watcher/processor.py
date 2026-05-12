@@ -70,7 +70,6 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
         domain=domain,
         all_domains=all_domains,
         non_cdn_ips=non_cdn_ips,
-        high_confidence=True,
     )
 
     send_discord_alert(
@@ -83,7 +82,6 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
         all_ips=all_ips,
         non_cdn_ips=non_cdn_ips,
         confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
-        high_confidence=True,
         reg_date=reg_date,
         email_status=email_status.details,
     )
@@ -130,18 +128,19 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         has_confirmed_attacker_ip_match
     )
     
-    confidence_str = "HIGH" if high_confidence else "LOW"
+    if not high_confidence:
+        print(f"[~] Skipping {domain} (low confidence - no alert)")
+        return False
+
     cf_status = "Cloudflare" if is_cloudflare else "Non-Cloudflare"
-    print(f"[!] ALERT [{confidence_str}]: Multiple domains ({len(all_domains)}), {cf_status} NS: {domain} (Registrar: {registrar}, IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})")
-    
+    print(f"[!] ALERT [HIGH]: Multiple domains ({len(all_domains)}), {cf_status} NS: {domain} (Registrar: {registrar}, IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})")
+
     if is_known_target and api_id:
         print(f"    -> Known target: {state.target_mapping[api_id]['name']}")
     elif has_confirmed_attacker_ip_match:
         print(f"    -> Escalated to HIGH via known attacker IP match: {', '.join(confirmed_attacker_ip_matches)}")
     elif is_suspicious_registrar and is_cloudflare:
         print(f"    -> Suspicious pattern: {registrar} + Cloudflare nameservers")
-    elif api_id:
-        print(f"    -> Unknown ID: {api_id} (low confidence - manual review)")
     
     # Mark as alerted
     if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
@@ -158,7 +157,6 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         domain=domain,
         all_domains=all_domains,
         non_cdn_ips=non_cdn_ips,
-        high_confidence=high_confidence,
     )
     
     send_discord_alert(
@@ -171,7 +169,6 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         all_ips=all_ips,
         non_cdn_ips=non_cdn_ips,
         confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
-        high_confidence=high_confidence,
         reg_date=reg_date,
         email_status=email_status.details,
     )

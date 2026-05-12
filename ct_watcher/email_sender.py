@@ -62,12 +62,8 @@ def send_automated_target_email(
     domain: str,
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]],
-    high_confidence: bool,
 ) -> EmailSendStatus:
     """Send automated SMTP email when policy requirements are met."""
-    if not high_confidence:
-        return EmailSendStatus("skipped", "Skipped: low confidence")
-
     if not target_info:
         return EmailSendStatus("skipped", "Skipped: unknown target organization")
 

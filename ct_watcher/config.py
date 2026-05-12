@@ -27,14 +27,10 @@ def _parse_int_env(name: str, default: int) -> int:
 # Load environment variables
 load_dotenv()
 
-# Discord webhook URL (required) - for high-confidence alerts
+# Discord webhook URL (required)
 DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK")
 if not DISCORD_WEBHOOK:
     raise RuntimeError("DISCORD_WEBHOOK is not set in the environment or .env file")
-
-# Second Discord webhook (optional) - for low-confidence alerts (manual review)
-# These alerts are sent without @mentions/notifications
-SECOND_DISCORD_WEBHOOK = os.environ.get("SECOND_DISCORD_WEBHOOK")
 
 # SMTP settings for automated threat-intel emails
 SMTP_ENABLED = _parse_bool_env("SMTP_ENABLED", False)

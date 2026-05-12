@@ -101,3 +101,20 @@ def get_attacker_ips_for_domain(domain: str) -> Tuple[List[str], List[str]]:
             non_cdn_ips.append(ip)
     
     return (all_ips, non_cdn_ips)
+
+
+def resolve_and_classify(domain: str) -> Tuple[List[str], List[str]]:
+    """Resolve domain IPs and classify CDN vs non-CDN. Does NOT track.
+
+    Returns tuple of (all_ips, non_cdn_ips).
+    """
+    all_ips = resolve_domain_ip(domain)
+    non_cdn_ips = [ip for ip in all_ips if not is_cdn_ip(ip)]
+    return (all_ips, non_cdn_ips)
+
+
+def track_resolved_ips(all_ips: List[str], non_cdn_ips: List[str], domain: str) -> None:
+    """Track previously resolved IPs to attacker_ips.json."""
+    non_cdn_set = set(non_cdn_ips)
+    for ip in all_ips:
+        track_attacker_ip(ip, domain, is_cdn=(ip not in non_cdn_set))

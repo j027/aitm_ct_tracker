@@ -15,7 +15,7 @@ from .config import (
 )
 from .state import state
 from .domain_checks import is_known_attacker_domain, get_nameservers, get_domain_info
-from .ip_tracking import get_attacker_ips_for_domain
+from .ip_tracking import get_attacker_ips_for_domain, resolve_and_classify, track_resolved_ips
 from .discord import send_discord_alert
 from .email_sender import send_automated_target_email
 from .utils import extract_target_id, is_common_word_id
@@ -107,8 +107,8 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     is_cloudflare, nameservers_list = get_nameservers(domain)
     registrar, reg_date = get_domain_info(domain)
     
-    # Resolve and track IP addresses
-    all_ips, non_cdn_ips = get_attacker_ips_for_domain(domain)
+    # Resolve IPs for confidence check — tracking deferred until high confidence confirmed
+    all_ips, non_cdn_ips = resolve_and_classify(domain)
     confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
     
     # Determine confidence level
@@ -133,6 +133,9 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     if not high_confidence:
         print(f"[~] Skipping {domain} (low confidence - no alert)")
         return False
+
+    # High confidence confirmed — now track IPs
+    track_resolved_ips(all_ips, non_cdn_ips, domain)
 
     cf_status = "Cloudflare" if is_cloudflare else "Non-Cloudflare"
     print(f"[!] ALERT [HIGH]: Multiple domains ({len(all_domains)}), {cf_status} NS: {domain} (Registrar: {registrar}, IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})")

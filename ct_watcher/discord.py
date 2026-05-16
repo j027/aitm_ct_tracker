@@ -89,10 +89,8 @@ def generate_mailto_link(
 
     omitted_count = len(all_domains) - len(included)
 
-    # Build final IOC string
+    # Build final IOC string — no suffix; full list is visible in the Discord embed
     iocs_list = "\r\n".join(included)
-    if omitted_count > 0:
-        iocs_list += f"\r\n(+{omitted_count} more — see Discord for full list)"
 
     body = template_before + iocs_list + ip_section + template_after
     mailto_url = f"mailto:{to_email}?subject={quote(subject)}&body={quote(body)}"

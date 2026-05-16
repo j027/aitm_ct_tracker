@@ -9,6 +9,7 @@ Monitors certificate transparency logs for a specific AitM phishing attack targe
 | `email_template.txt` | Email template for alerts. A default fallback is included. |
 | `known_domains.txt` | Known attacker domains, so new certs on these are flagged high-confidence. |
 | `known_ips.txt` | Known attacker IPs, so low-confidence matches resolving here are upgraded. |
+| `watched_org_ids.txt` | Optional. Org IDs (one per line) whose alerts are also sent to `DISCORD_WEBHOOK_WATCHED`. |
 
 `targets.json` uses this format:
 

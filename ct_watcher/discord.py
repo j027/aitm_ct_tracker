@@ -469,6 +469,7 @@ def send_discord_alert(
     reg_date: Optional[str] = None,
     email_status: Optional[str] = None,
     email_status_state: Optional[str] = None,
+    extra_webhook_url: Optional[str] = None,
 ) -> None:
     """Send alert to Discord webhook."""
     webhook_url = DISCORD_WEBHOOK
@@ -537,3 +538,10 @@ def send_discord_alert(
         print(f"[!] Discord webhook timeout for {domain}")
     except requests.exceptions.RequestException as e:
         print(f"[!] Discord webhook request failed for {domain}: {e}")
+
+    # Mirror the same embed to the watched-org webhook if provided
+    if extra_webhook_url:
+        try:
+            requests.post(extra_webhook_url, json=payload, timeout=10)
+        except requests.exceptions.RequestException as e:
+            print(f"[!] Watched-org Discord webhook failed for {domain}: {e}")

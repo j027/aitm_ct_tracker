@@ -32,6 +32,9 @@ DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK")
 if not DISCORD_WEBHOOK:
     raise RuntimeError("DISCORD_WEBHOOK is not set in the environment or .env file")
 
+# Optional secondary webhook for watched organizations
+DISCORD_WEBHOOK_WATCHED = os.environ.get("DISCORD_WEBHOOK_WATCHED")
+
 # Master kill-switch for all email functionality (mailto links, SMTP status, automated emails)
 EMAIL_ENABLED = _parse_bool_env("EMAIL_ENABLED", True)
 
@@ -133,6 +136,7 @@ KNOWN_IPS_FILE = "known_ips.txt"
 KNOWN_DOMAINS_FILE = "known_domains.txt"
 TARGETS_FILE = "targets.json"
 EMAIL_TEMPLATE_FILE = "email_template.txt"
+WATCHED_ORG_IDS_FILE = "watched_org_ids.txt"
 
 # Reconnection settings
 INITIAL_RECONNECT_DELAY = 1

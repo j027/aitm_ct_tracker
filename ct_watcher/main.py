@@ -9,6 +9,7 @@ from .loaders import (
     load_target_mapping,
     load_email_template,
     load_attacker_ips,
+    load_watched_org_ids,
 )
 from .websocket_client import run_websocket_client
 
@@ -24,6 +25,7 @@ def main() -> None:
     state.target_mapping = load_target_mapping()
     state.email_template = load_email_template()
     state.attacker_ips_data = load_attacker_ips()
+    state.watched_org_ids = load_watched_org_ids()
     
     # Start the WebSocket client
     asyncio.run(run_websocket_client())

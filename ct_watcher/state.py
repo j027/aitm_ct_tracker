@@ -21,6 +21,7 @@ class WatcherState:
     target_mapping: Dict[str, Dict[str, str]] = field(default_factory=dict)
     email_template: str = ""
     attacker_ips_data: Dict[str, Any] = field(default_factory=lambda: {"ips": {}, "last_updated": None})
+    watched_org_ids: Set[str] = field(default_factory=set)
     
     # Stats
     cert_count: int = 0

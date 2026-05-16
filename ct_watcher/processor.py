@@ -12,6 +12,7 @@ from .config import (
     ALERTED_CERTIFICATES_LIMIT,
     MAX_CERT_AGE_SECONDS,
     HIGH_CONFIDENCE_REGISTRARS,
+    DISCORD_WEBHOOK_WATCHED,
 )
 from .state import state
 from .domain_checks import is_known_attacker_domain, get_nameservers, get_domain_info
@@ -80,6 +81,7 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
         non_cdn_ips=non_cdn_ips,
     )
 
+    watched_webhook = DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None
     send_discord_alert(
         domain, all_domains,
         cert_timestamp=not_before,
@@ -93,6 +95,7 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
         reg_date=reg_date,
         email_status=email_status.details,
         email_status_state=email_status.state,
+        extra_webhook_url=watched_webhook,
     )
     state.total_alerts_count += 1
     return True
@@ -170,7 +173,8 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         all_domains=all_domains,
         non_cdn_ips=non_cdn_ips,
     )
-    
+
+    watched_webhook = DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None
     send_discord_alert(
         domain, all_domains,
         cert_timestamp=not_before,
@@ -184,6 +188,7 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         reg_date=reg_date,
         email_status=email_status.details,
         email_status_state=email_status.state,
+        extra_webhook_url=watched_webhook,
     )
     state.total_alerts_count += 1
     return True

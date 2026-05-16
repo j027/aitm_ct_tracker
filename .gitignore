@@ -8,3 +8,4 @@ attacker_ips.json
 *.pyc
 __pycache__/
 known_ips.txt
+watched_org_ids.txt

@@ -11,6 +11,7 @@ from .config import (
     EMAIL_TEMPLATE_FILE,
     ATTACKER_IPS_FILE,
     KNOWN_IPS_FILE,
+    WATCHED_ORG_IDS_FILE,
 )
 
 DEFAULT_EMAIL_TEMPLATE = """To the Security Team,
@@ -138,3 +139,28 @@ def load_known_attacker_ips(filepath: str = KNOWN_IPS_FILE) -> Set[str]:
         print(f"[!] Error loading known attacker IPs: {e}")
 
     return known_ips
+
+
+def load_watched_org_ids(filepath: str = WATCHED_ORG_IDS_FILE) -> Set[str]:
+    """Load watched organization IDs from file.
+
+    Expected format: one target ID per line (same keys as targets.json).
+    Lines starting with '#' and blank lines are ignored.
+    """
+    watched: Set[str] = set()
+    if not os.path.exists(filepath):
+        return watched
+
+    try:
+        with open(filepath, 'r') as f:
+            for raw_line in f:
+                line = raw_line.strip().lower()
+                if not line or line.startswith('#'):
+                    continue
+                watched.add(line)
+        if watched:
+            print(f"[*] Loaded {len(watched)} watched org IDs")
+    except Exception as e:
+        print(f"[!] Error loading watched org IDs: {e}")
+
+    return watched

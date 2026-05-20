@@ -64,11 +64,11 @@ HIGH_CONFIDENCE_REGISTRARS = frozenset([
 # Domain pattern matching
 # Match api-<ID>. where:
 #   - 5-char IDs are alphanumeric (e.g., 3dse1 for RIT)
-#   - 8-char IDs are hex only (e.g., 529aed63 for UCSB)
+#   - 8-char IDs are alphanumeric (e.g., 529aed63 for UCSB, 62a1edm3 for Morgan State)
 # The ID must be followed by a dot (its own subdomain) to reduce false positives
 # Excludes known cloud/SaaS patterns
 DOMAIN_REGEX = re.compile(
-    r"^api-(?:[0-9a-zA-Z]{5}|[0-9a-fA-F]{8})\."
+    r"^api-[0-9a-zA-Z]{5,8}\."
     r"(?!.*(?:upsolver\.com|ngrok\.|workers\.dev|multi\.software|"
     r"huaweiclouds\.|amazonaws\.com|azure\.|googleusercontent\.com))",
     re.IGNORECASE

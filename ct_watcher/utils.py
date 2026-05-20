@@ -13,9 +13,9 @@ def defang_domain(domain: str) -> str:
 def extract_target_id(domain: str) -> str | None:
     """Extract the ID from a domain matching our pattern.
     
-    Returns the ID (5-char alphanumeric or 8-char hex) or None if not found.
+    Returns the ID (5-8 char alphanumeric) or None if not found.
     """
-    match = re.match(r"^api-([0-9a-fA-F]{8}|[0-9a-zA-Z]{5})[\.\-]", domain, re.IGNORECASE)
+    match = re.match(r"^api-([0-9a-zA-Z]{5,8})[\.\-]", domain, re.IGNORECASE)
     if match:
         return match.group(1).lower()
     return None

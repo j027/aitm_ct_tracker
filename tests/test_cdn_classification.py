@@ -1,8 +1,31 @@
 import pytest
 import sys
 import os
+import ipaddress
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from ct_watcher.config import CDN_NETWORKS
+
+# Populate CDN_NETWORKS for tests since it's no longer hardcoded
+_TEST_CDN_RANGES = [
+    # Cloudflare
+    "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "173.245.48.0/20",
+    "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20",
+    "188.114.96.0/20", "162.158.0.0/15",
+    # Fastly
+    "151.101.0.0/16", "199.232.0.0/16",
+    # Akamai
+    "23.0.0.0/12", "104.64.0.0/10",
+    # CloudFront
+    "13.32.0.0/15", "13.35.0.0/16", "52.84.0.0/15",
+    "54.192.0.0/16", "99.84.0.0/16", "205.251.192.0/19",
+]
+for cidr in _TEST_CDN_RANGES:
+    try:
+        CDN_NETWORKS.append(ipaddress.ip_network(cidr))
+    except ValueError:
+        pass
 
 from ct_watcher.ip_tracking import is_cdn_ip
 

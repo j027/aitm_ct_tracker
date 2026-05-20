@@ -157,7 +157,7 @@ def _sanitize_embed(embed: Dict[str, Any]) -> Dict[str, Any]:
             "🌐 IP Addresses",
             "All Domains in Certificate",
             "Cloudflare Nameservers",
-            "Blockable IPs",
+            "Non-CDN IPs",
             "⚠️ CDN Warning",
             "🐦 Tweet @Namecheap",
         }
@@ -327,9 +327,9 @@ def build_embed(
         ip_lines = []
         for ip in all_ips[:10]:
             if non_cdn_ips and ip in non_cdn_ips:
-                ip_lines.append(f"{ip} ✅ (blockable)")
+                ip_lines.append(f"{ip} (non-cdn)")
             else:
-                ip_lines.append(f"{ip} ⚠️ (CDN - do not block)")
+                ip_lines.append(f"{ip} (cdn)")
         
         ip_block = "\n".join(ip_lines)
         if len(all_ips) > 10:
@@ -341,10 +341,11 @@ def build_embed(
             "inline": False
         })
         
+        cdn_count = len(all_ips) - len(non_cdn_ips) if non_cdn_ips else len(all_ips)
         if non_cdn_ips:
             embed["fields"].append({
-                "name": "Blockable IPs",
-                "value": f"`{len(non_cdn_ips)}` non-CDN IPs safe to block",
+                "name": "Non-CDN IPs",
+                "value": f"`{len(non_cdn_ips)}` of `{len(all_ips)}` resolved IPs",
                 "inline": True
             })
         else:

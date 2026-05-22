@@ -1,14 +1,13 @@
 """IP resolution and tracking for CT Watcher."""
 
 import json
-import re
-import subprocess
 import time
 import ipaddress
 from typing import List, Tuple
 
 from .config import CDN_NETWORKS, ATTACKER_IPS_FILE
 from .state import state
+from .dns_resolver import resolve_a
 
 
 def is_cdn_ip(ip_str: str) -> bool:
@@ -25,26 +24,7 @@ def is_cdn_ip(ip_str: str) -> bool:
 
 def resolve_domain_ip(domain: str) -> List[str]:
     """Resolve a domain to its IP address(es). Returns list of IPs."""
-    ips = []
-    try:
-        # Get all A records
-        result = subprocess.run(
-            ["dig", "+short", "A", domain],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        
-        for line in result.stdout.strip().split('\n'):
-            ip = line.strip()
-            if ip and re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
-                ips.append(ip)
-    except subprocess.TimeoutExpired:
-        print(f"[!] Timeout resolving IP for {domain}")
-    except Exception as e:
-        print(f"[!] Error resolving IP for {domain}: {e}")
-    
-    return ips
+    return resolve_a(domain)
 
 
 def save_attacker_ips(filepath: str = ATTACKER_IPS_FILE) -> None:

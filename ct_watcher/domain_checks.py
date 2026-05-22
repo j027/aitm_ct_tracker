@@ -1,9 +1,8 @@
 """Domain checking functions - nameservers, registrar, attacker domain matching."""
 
-from typing import List, Set, Tuple
+from typing import Dict, List, Set, Tuple
 import time
 import whoisit
-from typing import Dict, List, Optional, Set, Tuple
 
 from .utils import get_base_domain
 from .dns_resolver import resolve_ns

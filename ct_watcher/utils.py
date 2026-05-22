@@ -21,7 +21,7 @@ def extract_target_id(domain: str) -> str | None:
     return None
 
 
-def is_common_word_id(api_id: str) -> bool:
+def is_common_word_id(api_id: str | None) -> bool:
     """Check if the API ID is a common English word (false positive).
     
     Returns True if the ID appears to be a common word and should be filtered.

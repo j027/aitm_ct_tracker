@@ -41,6 +41,7 @@ EMAIL_ENABLED = _parse_bool_env("EMAIL_ENABLED", True)
 
 # SMTP settings for automated threat-intel emails
 SMTP_ENABLED = _parse_bool_env("SMTP_ENABLED", False)
+SMTP_ONLY_WATCHED = _parse_bool_env("SMTP_ONLY_WATCHED", False)
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.fastmail.com")
 SMTP_PORT = _parse_int_env("SMTP_PORT", 587)
 SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")

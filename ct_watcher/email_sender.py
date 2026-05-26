@@ -26,7 +26,6 @@ from .utils import defang_domain
 @dataclass
 class EmailSendStatus:
     """Result of an SMTP send attempt."""
-
     state: str
     details: str
 
@@ -55,7 +54,7 @@ def _build_email_body(all_domains: List[str], non_cdn_ips: Optional[List[str]]) 
 
 def _smtp_ready() -> bool:
     """Check whether required SMTP settings are present."""
-    return bool(SMTP_HOST and SMTP_PORT and SMTP_FROM_EMAIL and SMTP_USERNAME and SMTP_PASSWORD)
+    return bool(SMTP_HOST and SMTP_PORT and SMTP_FROM_EMAIL)
 
 
 def send_automated_target_email(
@@ -63,10 +62,16 @@ def send_automated_target_email(
     domain: str,
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]],
-) -> EmailSendStatus:
+    ) -> EmailSendStatus:
     """Send automated SMTP email when policy requirements are met."""
     if not EMAIL_ENABLED:
         return EmailSendStatus("skipped", "Skipped: email feature disabled")
+
+    if not SMTP_ENABLED:
+        return EmailSendStatus("skipped", "Skipped: SMTP disabled")
+
+    if not _smtp_ready():
+        return EmailSendStatus("failed", "Failed: SMTP config incomplete")
 
     if not target_info:
         return EmailSendStatus("skipped", "Skipped: unknown target organization")
@@ -76,11 +81,8 @@ def send_automated_target_email(
     if not target_email:
         return EmailSendStatus("skipped", "Skipped: target email missing")
 
-    if not SMTP_ENABLED:
-        return EmailSendStatus("skipped", "Skipped: SMTP disabled")
-
-    if not _smtp_ready():
-        return EmailSendStatus("failed", "Failed: SMTP config incomplete")
+    if SMTP_ONLY_WATCHED and api_id not in state.watched_org_ids:
+        return EmailSendStatus("skipped", "Skipped: only emailing watched orgs")
 
     subject = f"[Threat Intel] Phishing infrastructure detected targeting {target_name}"
     body = _build_email_body(all_domains, non_cdn_ips)
@@ -96,7 +98,8 @@ def send_automated_target_email(
     try:
         if SMTP_USE_SSL:
             with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
-                smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+                if SMTP_USERNAME and SMTP_PASSWORD:
+                    smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
                 smtp.send_message(message)
         else:
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
@@ -104,7 +107,8 @@ def send_automated_target_email(
                 if SMTP_USE_STARTTLS:
                     smtp.starttls()
                     smtp.ehlo()
-                smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+                if SMTP_USERNAME and SMTP_PASSWORD:
+                    smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
                 smtp.send_message(message)
         return EmailSendStatus("sent", f"Sent automated email to {target_email}")
     except Exception as exc:

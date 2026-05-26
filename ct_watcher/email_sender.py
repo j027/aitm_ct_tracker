@@ -67,6 +67,12 @@ def send_automated_target_email(
     if not EMAIL_ENABLED:
         return EmailSendStatus("skipped", "Skipped: email feature disabled")
 
+    if not SMTP_ENABLED:
+        return EmailSendStatus("skipped", "Skipped: SMTP disabled")
+
+    if not _smtp_ready():
+        return EmailSendStatus("failed", "Failed: SMTP config incomplete")
+
     if not target_info:
         return EmailSendStatus("skipped", "Skipped: unknown target organization")
 
@@ -75,11 +81,8 @@ def send_automated_target_email(
     if not target_email:
         return EmailSendStatus("skipped", "Skipped: target email missing")
 
-    if not SMTP_ENABLED:
-        return EmailSendStatus("skipped", "Skipped: SMTP disabled")
-
-    if not _smtp_ready():
-        return EmailSendStatus("failed", "Failed: SMTP config incomplete")
+    if SMTP_ONLY_WATCHED and not (api_id and api_id in state.watched_org_ids):
+        return EmailSendStatus("skipped", "Skipped: only emailing watched orgs")
 
     subject = f"[Threat Intel] Phishing infrastructure detected targeting {target_name}"
     body = _build_email_body(all_domains, non_cdn_ips)

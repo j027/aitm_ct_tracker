@@ -9,6 +9,7 @@ from .config import (
     EMAIL_ENABLED,
     SMTP_ENABLED,
     SMTP_ONLY_WATCHED,
+    EMAIL_SUBJECT,
     SMTP_HOST,
     SMTP_PORT,
     SMTP_USERNAME,
@@ -87,7 +88,7 @@ def send_automated_target_email(
     if SMTP_ONLY_WATCHED and api_id not in state.watched_org_ids:
         return EmailSendStatus("skipped", "Skipped: only emailing watched orgs")
 
-    subject = f"[Threat Intel] Phishing infrastructure detected targeting {target_name}"
+    subject = EMAIL_SUBJECT.replace("{TARGET_NAME}", target_name)
     body = _build_email_body(all_domains, non_cdn_ips)
 
     message = EmailMessage()

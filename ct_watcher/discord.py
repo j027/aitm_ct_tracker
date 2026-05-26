@@ -6,7 +6,7 @@ import requests
 from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import quote, urlencode
 
-from .config import DISCORD_WEBHOOK, EMAIL_ENABLED
+from .config import DISCORD_WEBHOOK, EMAIL_ENABLED, EMAIL_SUBJECT
 from .state import state
 from .utils import defang_domain, extract_target_id
 
@@ -54,7 +54,7 @@ def generate_mailto_link(
         org_name = "INSERT_ORG_NAME"
 
     # Build subject (fixed, not trimmed)
-    subject = f"[Threat Intel] Phishing infrastructure detected targeting {org_name}"
+    subject = EMAIL_SUBJECT.replace("{TARGET_NAME}", org_name)
 
     # Split template around the IOC placeholder so we can measure overhead
     template = state.email_template

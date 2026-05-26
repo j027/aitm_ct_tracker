@@ -59,6 +59,13 @@ AUTOMATED_EMAIL_DISCLAIMER = os.environ.get(
     " or if this appears to be in error.",
 )
 
+# Email subject line. {TARGET_NAME} placeholder gets replaced with the
+# target organization name at send time.
+EMAIL_SUBJECT = os.environ.get(
+    "EMAIL_SUBJECT",
+    "[Threat Intel] Phishing infrastructure detected targeting {TARGET_NAME}",
+)
+
 # Registrars that indicate high confidence (commonly used by attackers)
 HIGH_CONFIDENCE_REGISTRARS = frozenset(
     [

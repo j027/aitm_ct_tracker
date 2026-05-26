@@ -234,16 +234,10 @@ def build_embed(
     if target_info is None and hex_id and hex_id in state.target_mapping:
         target_info = state.target_mapping[hex_id]
 
-    # Calculate certificate freshness
+    # Calculate certificate freshness using Discord relative timestamp
     freshness_str = "Unknown"
     if cert_timestamp:
-        age_seconds = time.time() - cert_timestamp
-        if age_seconds < 60:
-            freshness_str = f"{int(age_seconds)} seconds"
-        elif age_seconds < 3600:
-            freshness_str = f"{int(age_seconds / 60)} minutes"
-        else:
-            freshness_str = f"{int(age_seconds / 3600)} hours"
+        freshness_str = f"<t:{int(cert_timestamp)}:R>"
 
     # Defang domains and format as code block
     defanged_domains = [defang_domain(d) for d in all_domains]
@@ -457,13 +451,7 @@ def _build_minimal_embed(
     """Build a compact fallback embed when Discord rejects the full payload."""
     freshness = "Unknown"
     if cert_timestamp:
-        age_seconds = int(max(0, time.time() - cert_timestamp))
-        if age_seconds < 60:
-            freshness = f"{age_seconds}s"
-        elif age_seconds < 3600:
-            freshness = f"{age_seconds // 60}m"
-        else:
-            freshness = f"{age_seconds // 3600}h"
+        freshness = f"<t:{int(cert_timestamp)}:R>"
 
     fields = [
         {

@@ -8,6 +8,7 @@ from typing import List, Dict, Optional
 from .config import (
     EMAIL_ENABLED,
     SMTP_ENABLED,
+    SMTP_ONLY_WATCHED,
     SMTP_HOST,
     SMTP_PORT,
     SMTP_USERNAME,
@@ -62,6 +63,7 @@ def send_automated_target_email(
     domain: str,
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]],
+    api_id: Optional[str] = None,
     ) -> EmailSendStatus:
     """Send automated SMTP email when policy requirements are met."""
     if not EMAIL_ENABLED:

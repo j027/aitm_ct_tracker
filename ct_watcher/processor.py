@@ -79,6 +79,7 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
         domain=domain,
         all_domains=all_domains,
         non_cdn_ips=non_cdn_ips,
+        api_id=api_id,
     )
 
     watched_webhook = DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None
@@ -172,6 +173,7 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         domain=domain,
         all_domains=all_domains,
         non_cdn_ips=non_cdn_ips,
+        api_id=api_id,
     )
 
     watched_webhook = DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None

@@ -101,22 +101,31 @@ class TestFetchAll:
     """Tests for combined fetch_all function."""
 
     def test_fetch_all_returns_both_providers(self):
-        with patch("ct_watcher.cdn_fetcher._fetch_cloudflare", return_value=["1.1.1.0/24"]), \
-             patch("ct_watcher.cdn_fetcher._fetch_fastly", return_value=["2.2.2.0/24"]):
+        with (
+            patch("ct_watcher.cdn_fetcher._fetch_cloudflare", return_value=["1.1.1.0/24"]),
+            patch("ct_watcher.cdn_fetcher._fetch_fastly", return_value=["2.2.2.0/24"]),
+        ):
             result = fetch_all()
 
         assert result == {"cloudflare": ["1.1.1.0/24"], "fastly": ["2.2.2.0/24"]}
 
     def test_fetch_all_handles_partial_failure(self):
-        with patch("ct_watcher.cdn_fetcher._fetch_cloudflare", return_value=["1.1.1.0/24"]), \
-             patch("ct_watcher.cdn_fetcher._fetch_fastly", side_effect=Exception("fail")):
+        with (
+            patch("ct_watcher.cdn_fetcher._fetch_cloudflare", return_value=["1.1.1.0/24"]),
+            patch("ct_watcher.cdn_fetcher._fetch_fastly", side_effect=Exception("fail")),
+        ):
             result = fetch_all()
 
         assert result == {"cloudflare": ["1.1.1.0/24"]}
 
     def test_fetch_all_handles_total_failure(self):
-        with patch("ct_watcher.cdn_fetcher._fetch_cloudflare", side_effect=Exception("fail")), \
-             patch("ct_watcher.cdn_fetcher._fetch_fastly", side_effect=Exception("fail")):
+        with (
+            patch(
+                "ct_watcher.cdn_fetcher._fetch_cloudflare",
+                side_effect=Exception("fail"),
+            ),
+            patch("ct_watcher.cdn_fetcher._fetch_fastly", side_effect=Exception("fail")),
+        ):
             result = fetch_all()
 
         assert result == {}
@@ -151,6 +160,7 @@ class TestCache:
             cache = json.load(f)
 
         from datetime import datetime, timezone, timedelta
+
         cache["updated_at"] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
         with open(cache_file, "w") as f:
             json.dump(cache, f)
@@ -164,10 +174,13 @@ class TestRefreshCdnCache:
     def test_refresh_fetches_and_saves(self, tmp_path):
         cache_file = str(tmp_path / "test_cache.json")
 
-        with patch("ct_watcher.cdn_fetcher.fetch_all", return_value={
-            "cloudflare": ["1.1.1.0/24"],
-            "fastly": ["2.2.2.0/24"],
-        }):
+        with patch(
+            "ct_watcher.cdn_fetcher.fetch_all",
+            return_value={
+                "cloudflare": ["1.1.1.0/24"],
+                "fastly": ["2.2.2.0/24"],
+            },
+        ):
             result = refresh_cdn_cache(cache_file)
 
         assert result == {"cloudflare": ["1.1.1.0/24"], "fastly": ["2.2.2.0/24"]}

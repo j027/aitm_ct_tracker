@@ -2,7 +2,6 @@
 
 import json
 import os
-import time
 import ipaddress
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
@@ -86,7 +85,10 @@ def load_cache(filepath: str = CACHE_FILE) -> Dict[str, List[str]] | None:
         updated_at = datetime.fromisoformat(cache["updated_at"])
         age = (datetime.now(timezone.utc) - updated_at).total_seconds()
         if age > CACHE_TTL_SECONDS:
-            print(f"[~] CDN cache is {age/3600:.1f}h old (>{CACHE_TTL_SECONDS/3600:.0f}h), will refresh")
+            print(
+                f"[~] CDN cache is {age / 3600:.1f}h old"
+                f" (>{CACHE_TTL_SECONDS / 3600:.0f}h), will refresh"
+            )
             return None
 
         return cache.get("providers", {})
@@ -114,7 +116,9 @@ def refresh_cdn_cache(filepath: str = CACHE_FILE) -> Dict[str, List[str]]:
     return {}
 
 
-def load_cdn_networks(filepath: str = CACHE_FILE) -> Tuple[Dict[str, List[str]], List[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
+def load_cdn_networks(
+    filepath: str = CACHE_FILE,
+) -> Tuple[Dict[str, List[str]], List[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
     """Load CDN ranges into ipaddress network objects for fast lookup.
 
     Tries to refresh cache first, then parses all CIDRs into networks.

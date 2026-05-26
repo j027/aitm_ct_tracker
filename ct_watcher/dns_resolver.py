@@ -70,5 +70,5 @@ def resolve_ns(domain: str) -> List[str]:
     """Resolve domain to nameserver hostnames. Returns empty list on failure."""
     nameservers = []
     for result in _resolve(domain, dns.rdatatype.NS):
-        nameservers.append(result.rstrip('.'))
+        nameservers.append(result.rstrip("."))
     return nameservers

@@ -31,7 +31,9 @@ async def run_websocket_client() -> None:
                     state.reconnect_delay = INITIAL_RECONNECT_DELAY
                     print("[*] WebSocket connection established")
                     async for message in ws:
-                        msg = message if isinstance(message, str) else bytes(message).decode("utf-8")
+                        msg = (
+                            message if isinstance(message, str) else bytes(message).decode("utf-8")
+                        )
                         asyncio.create_task(asyncio.to_thread(process_message, msg))
             except websockets.exceptions.ConnectionClosed as e:
                 print(f"[!] WebSocket closed: {e}")

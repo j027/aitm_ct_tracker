@@ -29,42 +29,42 @@ def _ensure_rdap_bootstrapped() -> bool:
 def is_known_attacker_domain(domain: str, known_domains: Set[str]) -> bool:
     """Check if domain or its base domain matches known attacker domains."""
     domain = domain.lower().strip()
-    
+
     if domain in known_domains:
         return True
-    
-    parts = domain.split('.')
+
+    parts = domain.split(".")
     if len(parts) >= 2:
         for i in range(len(parts) - 1):
-            base = '.'.join(parts[i:])
+            base = ".".join(parts[i:])
             if base in known_domains:
                 return True
-    
+
     return False
 
 
 def get_nameservers(domain: str) -> Tuple[bool, List[str]]:
     """Get nameservers for a domain.
-    
+
     Returns tuple of (is_cloudflare, nameservers_list).
     """
     try:
         base_domain = get_base_domain(domain)
-        
+
         nameservers_list = resolve_ns(base_domain)
-        
+
         if not nameservers_list:
             return (False, [])
-        
+
         is_cloudflare = any(
             "cloudflare" in ns.lower() or "ns.cloudflare.com" in ns.lower()
             for ns in nameservers_list
         )
-        
+
         return (is_cloudflare, nameservers_list)
     except Exception as e:
         print(f"[!] Error checking nameservers for {domain}: {e}")
-    
+
     return (False, [])
 
 
@@ -91,14 +91,14 @@ def get_domain_info(domain: str) -> tuple:
         if _ensure_rdap_bootstrapped():
             result = whoisit.domain(base_domain)
 
-            entities = result.get('entities', {})
-            reg_entities = entities.get('registrar', [])
-            if reg_entities and reg_entities[0].get('name'):
-                registrar = reg_entities[0]['name']
+            entities = result.get("entities", {})
+            reg_entities = entities.get("registrar", [])
+            if reg_entities and reg_entities[0].get("name"):
+                registrar = reg_entities[0]["name"]
 
-            rd = result.get('registration_date')
+            rd = result.get("registration_date")
             if rd:
-                reg_date = rd.strftime('%Y-%m-%d') if hasattr(rd, 'strftime') else str(rd)[:10]
+                reg_date = rd.strftime("%Y-%m-%d") if hasattr(rd, "strftime") else str(rd)[:10]
     except Exception as e:
         print(f"[~] RDAP lookup failed for {base_domain} ({e})")
 

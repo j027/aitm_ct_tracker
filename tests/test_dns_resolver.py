@@ -16,13 +16,13 @@ class TestResolveA:
         ips = resolve_a("google.com")
         assert len(ips) > 0, "google.com should have at least one A record"
         for ip in ips:
-            assert re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip), f"Invalid IPv4: {ip}"
+            assert re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip), f"Invalid IPv4: {ip}"
 
     def test_cloudflare_com_has_ipv4(self):
         ips = resolve_a("cloudflare.com")
         assert len(ips) > 0, "cloudflare.com should have at least one A record"
         for ip in ips:
-            assert re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip), f"Invalid IPv4: {ip}"
+            assert re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip), f"Invalid IPv4: {ip}"
 
     def test_nonexistent_domain_returns_empty(self):
         ips = resolve_a("nonexistent-domain-xyz123abc.invalid")
@@ -39,14 +39,16 @@ class TestResolveNS:
     def test_google_com_has_nameservers(self):
         ns_list = resolve_ns("google.com")
         assert len(ns_list) > 0, "google.com should have nameservers"
-        assert any("google" in ns.lower() or "ns" in ns.lower() for ns in ns_list), \
+        assert any("google" in ns.lower() or "ns" in ns.lower() for ns in ns_list), (
             f"Expected Google nameservers, got: {ns_list}"
+        )
 
     def test_cloudflare_com_has_nameservers(self):
         ns_list = resolve_ns("cloudflare.com")
         assert len(ns_list) > 0, "cloudflare.com should have nameservers"
-        assert any("cloudflare" in ns.lower() for ns in ns_list), \
+        assert any("cloudflare" in ns.lower() for ns in ns_list), (
             f"Expected Cloudflare nameservers, got: {ns_list}"
+        )
 
     def test_nonexistent_domain_returns_empty(self):
         ns_list = resolve_ns("nonexistent-domain-xyz123abc.invalid")
@@ -69,7 +71,7 @@ class TestDoHMode:
             ips = resolve_a("google.com")
             assert len(ips) > 0, "DoH should resolve google.com successfully"
             for ip in ips:
-                assert re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip), f"Invalid IPv4: {ip}"
+                assert re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip), f"Invalid IPv4: {ip}"
         finally:
             if original_doh is None:
                 os.environ.pop("DOH_SERVER", None)

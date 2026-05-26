@@ -36,7 +36,7 @@ def generate_mailto_link(
     target_info: Optional[Dict[str, str]],
     domain: str,
     all_domains: List[str],
-    non_cdn_ips: Optional[List[str]] = None
+    non_cdn_ips: Optional[List[str]] = None,
 ) -> Tuple[str, int]:
     """Generate a mailto link with pre-filled threat intel email.
 
@@ -47,8 +47,8 @@ def generate_mailto_link(
     """
     # Determine recipient email and org name
     if target_info:
-        to_email = target_info['email']
-        org_name = target_info['name']
+        to_email = target_info["email"]
+        org_name = target_info["name"]
     else:
         to_email = "INSERT_TARGET_EMAIL"
         org_name = "INSERT_ORG_NAME"
@@ -162,8 +162,7 @@ def _sanitize_embed(embed: Dict[str, Any]) -> Dict[str, Any]:
             "🐦 Tweet @Namecheap",
         }
         embed["fields"] = [
-            f for f in embed.get("fields", [])
-            if f.get("name") not in optional_field_names
+            f for f in embed.get("fields", []) if f.get("name") not in optional_field_names
         ]
 
     if _estimate_embed_chars(embed) > DISCORD_SAFE_EMBED_TOTAL:
@@ -228,13 +227,13 @@ def build_embed(
     mailto_link: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build Discord embed for alert."""
-    
+
     # Extract hex ID and look up target info
     hex_id = extract_target_id(domain)
     target_info = None
     if hex_id and hex_id in state.target_mapping:
         target_info = state.target_mapping[hex_id]
-    
+
     # Calculate certificate freshness
     freshness_str = "Unknown"
     if cert_timestamp:
@@ -245,24 +244,34 @@ def build_embed(
             freshness_str = f"{int(age_seconds / 60)} minutes"
         else:
             freshness_str = f"{int(age_seconds / 3600)} hours"
-    
+
     # Defang domains and format as code block
     defanged_domains = [defang_domain(d) for d in all_domains]
     domains_block = "\n".join(defanged_domains[:50])
     if len(all_domains) > 50:
         domains_block += f"\n... and {len(all_domains) - 50} more"
-    
+
     # Build embed
     embed = {
-        "title": "🚨 Certificate Transparency Alert" if is_known_attacker else "⚠️ Potential Target Match",
+        "title": "🚨 Certificate Transparency Alert"
+        if is_known_attacker
+        else "⚠️ Potential Target Match",
         "color": 0xFF0000 if is_known_attacker else 0xFFA500,
         "fields": [
-            {"name": "Matched Domain", "value": f"`{defang_domain(domain)}`", "inline": False},
+            {
+                "name": "Matched Domain",
+                "value": f"`{defang_domain(domain)}`",
+                "inline": False,
+            },
             {"name": "Certificate Freshness", "value": freshness_str, "inline": True},
             {"name": "Domain Count", "value": str(len(all_domains)), "inline": True},
-            {"name": "Registrar", "value": registrar if registrar else "Unknown", "inline": True},
+            {
+                "name": "Registrar",
+                "value": registrar if registrar else "Unknown",
+                "inline": True,
+            },
         ],
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
     }
 
     # Add domain registration date field if available
@@ -275,53 +284,63 @@ def build_embed(
             reg_date_display = f"{reg_date} ({days_old} days old)"
         except Exception:
             reg_date_display = reg_date
-        embed["fields"].append({
-            "name": "📅 Domain Registered",
-            "value": reg_date_display,
-            "inline": True
-        })
+        embed["fields"].append(
+            {"name": "📅 Domain Registered", "value": reg_date_display, "inline": True}
+        )
     else:
-        embed["fields"].append({
-            "name": "📅 Domain Registered",
-            "value": "Unknown (RDAP unavailable)",
-            "inline": True
-        })
-    
+        embed["fields"].append(
+            {
+                "name": "📅 Domain Registered",
+                "value": "Unknown (RDAP unavailable)",
+                "inline": True,
+            }
+        )
+
     # Add nameserver information
     if nameservers is not None:
         cloudflare_status = "✅ Yes" if is_cloudflare else "❌ No"
         nameservers_str = "\n".join(nameservers) if nameservers else "Unable to retrieve"
-        
-        embed["fields"].append({
-            "name": "Cloudflare Nameservers",
-            "value": cloudflare_status,
-            "inline": True
-        })
-        embed["fields"].append({
-            "name": "Nameservers",
-            "value": f"```\n{nameservers_str}\n```" if nameservers else "Unable to retrieve",
-            "inline": False
-        })
-    
+
+        embed["fields"].append(
+            {
+                "name": "Cloudflare Nameservers",
+                "value": cloudflare_status,
+                "inline": True,
+            }
+        )
+        embed["fields"].append(
+            {
+                "name": "Nameservers",
+                "value": f"```\n{nameservers_str}\n```" if nameservers else "Unable to retrieve",
+                "inline": False,
+            }
+        )
+
     # Add target information if available
     if target_info:
-        embed["fields"].insert(1, {
-            "name": "🎯 Target Organization",
-            "value": f"**{target_info['name']}**\nContact: {target_info['email']}",
-            "inline": False
-        })
+        embed["fields"].insert(
+            1,
+            {
+                "name": "🎯 Target Organization",
+                "value": f"**{target_info['name']}**\nContact: {target_info['email']}",
+                "inline": False,
+            },
+        )
         embed["color"] = 0xFF0000
     elif hex_id and not is_known_attacker:
-        embed["fields"].insert(1, {
-            "name": "Hex ID",
-            "value": f"`{hex_id}` (Unknown Target)",
-            "inline": False
-        })
-    
+        embed["fields"].insert(
+            1,
+            {
+                "name": "Hex ID",
+                "value": f"`{hex_id}` (Unknown Target)",
+                "inline": False,
+            },
+        )
+
     # Add alert type indicator
     if is_known_attacker:
         embed["description"] = "⚠️ **KNOWN ATTACKER DOMAIN DETECTED**"
-    
+
     # Add IP address information
     if all_ips:
         ip_lines = []
@@ -330,78 +349,99 @@ def build_embed(
                 ip_lines.append(f"{ip} (non-cdn)")
             else:
                 ip_lines.append(f"{ip} (cdn)")
-        
+
         ip_block = "\n".join(ip_lines)
         if len(all_ips) > 10:
             ip_block += f"\n... and {len(all_ips) - 10} more"
-        
-        embed["fields"].append({
-            "name": "🌐 IP Addresses",
-            "value": f"```\n{ip_block}\n```",
-            "inline": False
-        })
-        
-        cdn_count = len(all_ips) - len(non_cdn_ips) if non_cdn_ips else len(all_ips)
+
+        embed["fields"].append(
+            {
+                "name": "🌐 IP Addresses",
+                "value": f"```\n{ip_block}\n```",
+                "inline": False,
+            }
+        )
+
         if non_cdn_ips:
-            embed["fields"].append({
-                "name": "Non-CDN IPs",
-                "value": f"`{len(non_cdn_ips)}` of `{len(all_ips)}` resolved IPs",
-                "inline": True
-            })
+            embed["fields"].append(
+                {
+                    "name": "Non-CDN IPs",
+                    "value": f"`{len(non_cdn_ips)}` of `{len(all_ips)}` resolved IPs",
+                    "inline": True,
+                }
+            )
         else:
-            embed["fields"].append({
-                "name": "⚠️ CDN Warning",
-                "value": "All IPs are CDN - do not block!",
-                "inline": True
-            })
+            embed["fields"].append(
+                {
+                    "name": "⚠️ CDN Warning",
+                    "value": "All IPs are CDN - do not block!",
+                    "inline": True,
+                }
+            )
 
     if confirmed_attacker_ip_matches:
         matched_ips = "\n".join(confirmed_attacker_ip_matches[:20])
         if len(confirmed_attacker_ip_matches) > 20:
             matched_ips += f"\n... and {len(confirmed_attacker_ip_matches) - 20} more"
-        embed["fields"].append({
-            "name": "🧨 Confirmed Attacker IP Match",
-            "value": f"```\n{matched_ips}\n```",
-            "inline": False
-        })
+        embed["fields"].append(
+            {
+                "name": "🧨 Confirmed Attacker IP Match",
+                "value": f"```\n{matched_ips}\n```",
+                "inline": False,
+            }
+        )
 
     if EMAIL_ENABLED and email_status:
-        embed["fields"].append({
-            "name": "Email Status",
-            "value": email_status,
-            "inline": False,
-        })
-    
+        embed["fields"].append(
+            {
+                "name": "Email Status",
+                "value": email_status,
+                "inline": False,
+            }
+        )
+
     # Add all domains in code block
-    embed["fields"].append({
-        "name": "All Domains in Certificate",
-        "value": f"```\n{domains_block}\n```",
-        "inline": False
-    })
-    
+    embed["fields"].append(
+        {
+            "name": "All Domains in Certificate",
+            "value": f"```\n{domains_block}\n```",
+            "inline": False,
+        }
+    )
+
     # Add actions. Email and tweet links get separate fields to avoid 1024-char truncation.
     if EMAIL_ENABLED:
         if email_status_state == "sent":
-            embed["fields"].append({
-                "name": "📣 Actions",
-                "value": "✅ Email sent automatically",
-                "inline": False
-            })
+            embed["fields"].append(
+                {
+                    "name": "📣 Actions",
+                    "value": "✅ Email sent automatically",
+                    "inline": False,
+                }
+            )
         else:
             # Use pre-computed mailto_link if provided by send_discord_alert, else generate inline
-            link = mailto_link if mailto_link is not None else generate_mailto_link(target_info, domain, all_domains, non_cdn_ips)[0]
-            embed["fields"].append({
-                "name": "📣 Actions",
-                "value": f"[Email threat intel]({link})",
-                "inline": False
-            })
+            link = (
+                mailto_link
+                if mailto_link is not None
+                else generate_mailto_link(target_info, domain, all_domains, non_cdn_ips)[0]
+            )
+            embed["fields"].append(
+                {
+                    "name": "📣 Actions",
+                    "value": f"[Email threat intel]({link})",
+                    "inline": False,
+                }
+            )
     if _is_namecheap_registrar(registrar):
         tweet_link = _build_namecheap_tweet_link(all_domains)
-        embed["fields"].append({
-            "name": "🐦 Tweet @Namecheap",
-            "value": f"[Tweet to @Namecheap]({tweet_link})",
-            "inline": False
-        })
+        embed["fields"].append(
+            {
+                "name": "🐦 Tweet @Namecheap",
+                "value": f"[Tweet to @Namecheap]({tweet_link})",
+                "inline": False,
+            }
+        )
 
     return _sanitize_embed(embed)
 
@@ -412,7 +452,7 @@ def _build_minimal_embed(
     registrar: Optional[str],
     cert_timestamp: Optional[float],
     confirmed_attacker_ip_matches: Optional[List[str]],
-    reg_date: Optional[str]
+    reg_date: Optional[str],
 ) -> Dict[str, Any]:
     """Build a compact fallback embed when Discord rejects the full payload."""
     freshness = "Unknown"
@@ -426,7 +466,11 @@ def _build_minimal_embed(
             freshness = f"{age_seconds // 3600}h"
 
     fields = [
-        {"name": "Matched Domain", "value": f"`{defang_domain(domain)}`", "inline": False},
+        {
+            "name": "Matched Domain",
+            "value": f"`{defang_domain(domain)}`",
+            "inline": False,
+        },
         {"name": "Domain Count", "value": str(len(all_domains)), "inline": True},
         {"name": "Registrar", "value": registrar or "Unknown", "inline": True},
         {"name": "Certificate Freshness", "value": freshness, "inline": True},
@@ -434,18 +478,32 @@ def _build_minimal_embed(
     if reg_date:
         fields.append({"name": "📅 Domain Registered", "value": reg_date, "inline": True})
     if confirmed_attacker_ip_matches:
-        fields.append({
-            "name": "🧨 Confirmed Attacker IP Match",
-            "value": ", ".join(confirmed_attacker_ip_matches[:5]),
-            "inline": False,
-        })
+        fields.append(
+            {
+                "name": "🧨 Confirmed Attacker IP Match",
+                "value": ", ".join(confirmed_attacker_ip_matches[:5]),
+                "inline": False,
+            }
+        )
 
     if EMAIL_ENABLED:
         minimal_mailto, _ = generate_mailto_link(None, domain, all_domains, None)
-        fields.append({"name": "📣 Actions", "value": f"[Email threat intel]({minimal_mailto})", "inline": False})
+        fields.append(
+            {
+                "name": "📣 Actions",
+                "value": f"[Email threat intel]({minimal_mailto})",
+                "inline": False,
+            }
+        )
     if _is_namecheap_registrar(registrar):
         tweet_link = _build_namecheap_tweet_link(all_domains)
-        fields.append({"name": "🐦 Tweet @Namecheap", "value": f"[Tweet to @Namecheap]({tweet_link})", "inline": False})
+        fields.append(
+            {
+                "name": "🐦 Tweet @Namecheap",
+                "value": f"[Tweet to @Namecheap]({tweet_link})",
+                "inline": False,
+            }
+        )
 
     minimal = {
         "title": "⚠️ CT Alert (Compact)",
@@ -492,9 +550,18 @@ def send_discord_alert(
         )
 
     embed = build_embed(
-        domain, all_domains, cert_timestamp, is_known_attacker,
-        registrar, is_cloudflare, nameservers, all_ips, non_cdn_ips,
-        confirmed_attacker_ip_matches, reg_date, email_status,
+        domain,
+        all_domains,
+        cert_timestamp,
+        is_known_attacker,
+        registrar,
+        is_cloudflare,
+        nameservers,
+        all_ips,
+        non_cdn_ips,
+        confirmed_attacker_ip_matches,
+        reg_date,
+        email_status,
         email_status_state=email_status_state,
         mailto_link=mailto_url,
     )
@@ -518,7 +585,10 @@ def send_discord_alert(
                 minimal_payload: Dict[str, Any] = {"embeds": [minimal_embed]}
                 retry_resp = requests.post(webhook_url, json=minimal_payload, timeout=10)
                 if retry_resp.status_code >= 300:
-                    print(f"[!] Discord fallback webhook error {retry_resp.status_code}: {retry_resp.text}")
+                    print(
+                        f"[!] Discord fallback webhook error"
+                        f" {retry_resp.status_code}: {retry_resp.text}"
+                    )
         else:
             # Embed sent successfully — send follow-up plain message if mailto was trimmed.
             if omitted_count > 0:

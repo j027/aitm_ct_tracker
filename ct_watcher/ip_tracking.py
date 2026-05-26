@@ -31,8 +31,10 @@ def save_attacker_ips(filepath: str = ATTACKER_IPS_FILE) -> None:
     """Save attacker IPs to JSON file."""
     try:
         with state.ip_save_lock:
-            state.attacker_ips_data["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            with open(filepath, 'w') as f:
+            state.attacker_ips_data["last_updated"] = time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+            )
+            with open(filepath, "w") as f:
                 json.dump(state.attacker_ips_data, f, indent=2)
     except Exception as e:
         print(f"[!] Error saving attacker IPs: {e}")
@@ -49,7 +51,7 @@ def track_attacker_ip(ip: str, domain: str, is_cdn: bool = False) -> None:
                 "last_seen": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "domains": [domain],
                 "is_cdn": is_cdn,
-                "count": 1
+                "count": 1,
             }
             print(f"[+] New attacker IP tracked: {ip} {'(CDN)' if is_cdn else ''}")
         else:
@@ -68,18 +70,18 @@ def track_attacker_ip(ip: str, domain: str, is_cdn: bool = False) -> None:
 
 def get_attacker_ips_for_domain(domain: str) -> Tuple[List[str], List[str]]:
     """Resolve domain and track IPs.
-    
+
     Returns tuple of (all_ips, non_cdn_ips).
     """
     all_ips = resolve_domain_ip(domain)
     non_cdn_ips = []
-    
+
     for ip in all_ips:
         is_cdn = is_cdn_ip(ip)
         track_attacker_ip(ip, domain, is_cdn)
         if not is_cdn:
             non_cdn_ips.append(ip)
-    
+
     return (all_ips, non_cdn_ips)
 
 

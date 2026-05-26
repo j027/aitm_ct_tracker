@@ -16,7 +16,11 @@ from .config import (
 )
 from .state import state
 from .domain_checks import is_known_attacker_domain, get_nameservers, get_domain_info
-from .ip_tracking import get_attacker_ips_for_domain, resolve_and_classify, track_resolved_ips
+from .ip_tracking import (
+    get_attacker_ips_for_domain,
+    resolve_and_classify,
+    track_resolved_ips,
+)
 from .discord import send_discord_alert
 from .email_sender import send_automated_target_email
 from .utils import extract_target_id, is_common_word_id
@@ -35,11 +39,16 @@ def _print_stats() -> None:
     current_time = time.time()
     if current_time - state.last_stats_time >= 60:
         timestamp_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        print(f"[{timestamp_str}] Processed {state.cert_count} certificates in the last minute | Total alerts: {state.total_alerts_count}")
+        print(
+            f"[{timestamp_str}] Processed {state.cert_count} certificates"
+            f" in the last minute | Total alerts: {state.total_alerts_count}"
+        )
         state.reset_stats()
 
 
-def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, not_before: float | None) -> bool:
+def _handle_known_attacker(
+    domain: str, all_domains: List[str], cert_id: int, not_before: float | None
+) -> bool:
     """Handle known attacker domain detection. Returns True if alert was sent."""
     with state.lock:
         if domain in state.alerted_domains:
@@ -59,7 +68,11 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
     all_ips, non_cdn_ips = get_attacker_ips_for_domain(domain)
     confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
 
-    print(f"[!] KNOWN ATTACKER DOMAIN DETECTED: {domain} (Registrar: {registrar}, IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})")
+    print(
+        f"[!] KNOWN ATTACKER DOMAIN DETECTED: {domain}"
+        f" (Registrar: {registrar}, IPs: {len(all_ips)},"
+        f" Blockable: {len(non_cdn_ips)})"
+    )
 
     # Known attacker domains are always high confidence
     api_id = extract_target_id(domain)
@@ -82,9 +95,12 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
         api_id=api_id,
     )
 
-    watched_webhook = DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None
+    watched_webhook = (
+        DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None
+    )
     send_discord_alert(
-        domain, all_domains,
+        domain,
+        all_domains,
         cert_timestamp=not_before,
         is_known_attacker=True,
         registrar=registrar,
@@ -102,7 +118,9 @@ def _handle_known_attacker(domain: str, all_domains: List[str], cert_id: int, no
     return True
 
 
-def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not_before: float | None) -> bool:
+def _handle_pattern_match(
+    domain: str, all_domains: List[str], cert_id: int, not_before: float | None
+) -> bool:
     """Handle pattern match detection. Returns True if alert was sent."""
     with state.lock:
         if domain in state.alerted_domains:
@@ -112,39 +130,41 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         state.alerted_domains.add(domain)
 
     print(f"[+] Potential match: {domain}")
-    
+
     # Only alert if multiple domains in certificate
     if len(all_domains) <= 1:
         print(f"[~] Skipping {domain} (only single domain in certificate)")
         return False
-    
+
     # Get nameserver and registrar info
     is_cloudflare, nameservers_list = get_nameservers(domain)
     registrar, reg_date = get_domain_info(domain)
-    
+
     # Resolve IPs for confidence check — tracking deferred until high confidence confirmed
     all_ips, non_cdn_ips = resolve_and_classify(domain)
     confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
-    
+
     # Determine confidence level
     # High confidence only if:
     # 1. The extracted ID matches a known target (in target_mapping), OR
-    # 2. Registrar is GoDaddy/Namecheap AND Cloudflare nameservers AND multiple domains AND 8-char hex ID
-    # 
-    # Unknown 5-char alphanumeric IDs are always low confidence to avoid alert fatigue
+    # 2. Registrar is GoDaddy/Namecheap AND Cloudflare nameservers AND
+    #    multiple domains AND 8-char hex ID
+    #
+    # Unknown 5-char alphanumeric IDs are always low confidence to avoid
+    # alert fatigue
     api_id = extract_target_id(domain)
     is_known_target = api_id and api_id in state.target_mapping
     is_suspicious_registrar = _is_high_confidence_registrar(registrar)
-    is_8char_hex = api_id and len(api_id) == 8 and all(c in '0123456789abcdef' for c in api_id)
-    
+    is_8char_hex = api_id and len(api_id) == 8 and all(c in "0123456789abcdef" for c in api_id)
+
     # High confidence requires known target OR a suspicious infra pattern OR a confirmed IP match.
     has_confirmed_attacker_ip_match = bool(confirmed_attacker_ip_matches)
     high_confidence = bool(
-        is_known_target or 
-        (is_suspicious_registrar and is_cloudflare and len(all_domains) > 1 and is_8char_hex) or
-        has_confirmed_attacker_ip_match
+        is_known_target
+        or (is_suspicious_registrar and is_cloudflare and len(all_domains) > 1 and is_8char_hex)
+        or has_confirmed_attacker_ip_match
     )
-    
+
     if not high_confidence:
         print(f"[~] Skipping {domain} (low confidence - no alert)")
         return False
@@ -153,21 +173,30 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
     track_resolved_ips(all_ips, non_cdn_ips, domain)
 
     cf_status = "Cloudflare" if is_cloudflare else "Non-Cloudflare"
-    print(f"[!] ALERT [HIGH]: Multiple domains ({len(all_domains)}), {cf_status} NS: {domain} (Registrar: {registrar}, IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})")
+    print(
+        f"[!] ALERT [HIGH]: Multiple domains ({len(all_domains)}),"
+        f" {cf_status} NS: {domain} (Registrar: {registrar},"
+        f" IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})"
+    )
 
     if is_known_target and api_id:
         print(f"    -> Known target: {state.target_mapping[api_id]['name']}")
     elif has_confirmed_attacker_ip_match:
-        print(f"    -> Escalated to HIGH via known attacker IP match: {', '.join(confirmed_attacker_ip_matches)}")
+        print(
+            f"    -> Escalated to HIGH via known attacker IP match:"
+            f" {', '.join(confirmed_attacker_ip_matches)}"
+        )
     elif is_suspicious_registrar and is_cloudflare:
         print(f"    -> Suspicious pattern: {registrar} + Cloudflare nameservers")
-    
+
     with state.lock:
         if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
             state.clear_alerted_certificates()
         state.alerted_certificates.add(cert_id)
 
-    target_info = state.target_mapping.get(api_id) if (api_id and api_id in state.target_mapping) else None
+    target_info = (
+        state.target_mapping.get(api_id) if (api_id and api_id in state.target_mapping) else None
+    )
     email_status = send_automated_target_email(
         target_info=target_info,
         domain=domain,
@@ -176,9 +205,12 @@ def _handle_pattern_match(domain: str, all_domains: List[str], cert_id: int, not
         api_id=api_id,
     )
 
-    watched_webhook = DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None
+    watched_webhook = (
+        DISCORD_WEBHOOK_WATCHED if (api_id and api_id in state.watched_org_ids) else None
+    )
     send_discord_alert(
-        domain, all_domains,
+        domain,
+        all_domains,
         cert_timestamp=not_before,
         is_known_attacker=False,
         registrar=registrar,
@@ -215,15 +247,15 @@ def process_message(message_str: str) -> None:
 
         if not all_domains:
             return
-        
+
         # Create unique certificate identifier
         cert_id = hash(tuple(sorted(d.strip().lower() for d in all_domains)))
-        
+
         # Check if already processed
         with state.lock:
             if cert_id in state.alerted_certificates:
                 return
-        
+
         # Check certificate age
         not_before = leaf_cert.get("not_before")
         if not_before:
@@ -264,14 +296,14 @@ def process_message(message_str: str) -> None:
                     if api_id and is_common_word_id(api_id):
                         # Skip common words like 'local', 'admin', 'store'
                         continue
-                    
+
                     if _handle_pattern_match(domain, all_domains, cert_id, not_before):
                         break
-                        
+
             except Exception as e:
                 print(f"[!] Error processing domain {d}: {e}")
                 continue
-                
+
     except Exception as e:
         print(f"[!] Error in process_message: {e}")
         traceback.print_exc()

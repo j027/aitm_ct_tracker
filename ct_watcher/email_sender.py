@@ -27,6 +27,7 @@ from .utils import defang_domain
 @dataclass
 class EmailSendStatus:
     """Result of an SMTP send attempt."""
+
     state: str
     details: str
 
@@ -64,7 +65,7 @@ def send_automated_target_email(
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]],
     api_id: Optional[str] = None,
-    ) -> EmailSendStatus:
+) -> EmailSendStatus:
     """Send automated SMTP email when policy requirements are met."""
     if not EMAIL_ENABLED:
         return EmailSendStatus("skipped", "Skipped: email feature disabled")

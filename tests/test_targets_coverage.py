@@ -37,6 +37,5 @@ class TestTargetsCoverage:
             test_domain = f"api-{target_id}.example.com"
             extracted = extract_target_id(test_domain)
             assert extracted == target_id, (
-                f"Failed to extract '{target_id}' from '{test_domain}' "
-                f"(got '{extracted}')"
+                f"Failed to extract '{target_id}' from '{test_domain}' (got '{extracted}')"
             )

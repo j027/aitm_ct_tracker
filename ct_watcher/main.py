@@ -19,7 +19,7 @@ def main() -> None:
     """Main entry point."""
     if not DISCORD_WEBHOOK:
         raise RuntimeError("DISCORD_WEBHOOK is not set in the environment or .env file")
-    
+
     # Load all configuration files
     state.known_attacker_domains = load_known_attacker_domains()
     state.known_attacker_ips = load_known_attacker_ips()
@@ -27,12 +27,12 @@ def main() -> None:
     state.email_template = load_email_template()
     state.attacker_ips_data = load_attacker_ips()
     state.watched_org_ids = load_watched_org_ids()
-    
+
     # Load dynamic CDN ranges
     provider_ranges, networks = load_cdn_networks()
     log_cdn_stats(provider_ranges)
     CDN_NETWORKS.extend(networks)
-    
+
     # Start the WebSocket client
     asyncio.run(run_websocket_client())
 

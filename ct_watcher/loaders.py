@@ -16,7 +16,8 @@ from .config import (
 
 DEFAULT_EMAIL_TEMPLATE = """To the Security Team,
 
-I detected new SSL certificate registrations matching known AitM phishing patterns targeting your organization.
+I detected new SSL certificate registrations matching known AitM
+phishing patterns targeting your organization.
 
 IOCs:
 {IOCS_LIST}
@@ -28,47 +29,47 @@ Regards"""
 
 def load_known_attacker_domains(filepath: str = KNOWN_DOMAINS_FILE) -> Set[str]:
     """Load known attacker domains from file and un-defang them.
-    
+
     Expected format: one domain per line, defanged like littlenuggetsco[.]com
     """
     domains = set()
     if not os.path.exists(filepath):
         print(f"[*] No known domains file found at {filepath}")
         return domains
-    
+
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             for line in f:
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
                 # Un-defang: replace [.] with .
-                domain = line.replace('[.]', '.').replace('[dot]', '.').lower()
+                domain = line.replace("[.]", ".").replace("[dot]", ".").lower()
                 domains.add(domain)
         print(f"[*] Loaded {len(domains)} known attacker domains")
     except Exception as e:
         print(f"[!] Error loading known domains: {e}")
-    
+
     return domains
 
 
 def load_target_mapping(filepath: str = TARGETS_FILE) -> Dict[str, Dict[str, str]]:
     """Load target organization mapping from JSON file.
-    
+
     Expected format: {"hex_id": {"name": "Org Name", "email": "email@example.com"}}
     """
     mapping = {}
     if not os.path.exists(filepath):
         print(f"[*] No targets file found at {filepath}")
         return mapping
-    
+
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             mapping = json.load(f)
         print(f"[*] Loaded {len(mapping)} target organizations")
     except Exception as e:
         print(f"[!] Error loading targets: {e}")
-    
+
     return mapping
 
 
@@ -77,9 +78,9 @@ def load_email_template(filepath: str = EMAIL_TEMPLATE_FILE) -> str:
     if not os.path.exists(filepath):
         print(f"[*] No email template found at {filepath}, using default")
         return DEFAULT_EMAIL_TEMPLATE
-    
+
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             return f.read()
     except Exception as e:
         print(f"[!] Error loading email template: {e}, using default")
@@ -89,12 +90,12 @@ def load_email_template(filepath: str = EMAIL_TEMPLATE_FILE) -> str:
 def load_attacker_ips(filepath: str = ATTACKER_IPS_FILE) -> Dict[str, Any]:
     """Load attacker IPs from JSON file."""
     default_structure = {"ips": {}, "last_updated": None}
-    
+
     if not os.path.exists(filepath):
         return default_structure
-    
+
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             data = json.load(f)
         # Ensure the expected structure exists
         if "ips" not in data:
@@ -120,10 +121,10 @@ def load_known_attacker_ips(filepath: str = KNOWN_IPS_FILE) -> Set[str]:
 
     invalid_count = 0
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             for raw_line in f:
                 line = raw_line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
 
                 try:
@@ -152,10 +153,10 @@ def load_watched_org_ids(filepath: str = WATCHED_ORG_IDS_FILE) -> Set[str]:
         return watched
 
     try:
-        with open(filepath, 'r') as f:
+        with open(filepath, "r") as f:
             for raw_line in f:
                 line = raw_line.strip().lower()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
                 watched.add(line)
         if watched:

@@ -31,14 +31,12 @@ def build_apprise_alert(
     if target_info is None and hex_id and hex_id in state.target_mapping:
         target_info = state.target_mapping[hex_id]
 
-    # Title
+    lines = []
+
+    # Header: title, matched domain, target info
     title = "🚨 KNOWN ATTACKER DOMAIN DETECTED" if is_known_attacker else "⚠️ Potential Target Match"
-    lines = [f"**{title}**", ""]
-
-    # Matched domain
+    lines.append(f"**{title}**")
     lines.append(f"**Matched Domain:** `{defang_domain(domain)}`")
-
-    # Target organization
     if target_info:
         lines.append(f"**Target Organization:** {target_info['name']} ({target_info['email']})")
     elif hex_id:
@@ -46,13 +44,12 @@ def build_apprise_alert(
 
     lines.append("")
 
-    # Certificate freshness, domain count, registrar
+    # Certificate info
     freshness_str = calculate_freshness(cert_timestamp, fmt="plain")
     lines.append(f"**Certificate Freshness:** {freshness_str}")
     lines.append(f"**Domain Count:** {len(all_domains)}")
     lines.append(f"**Registrar:** {registrar or 'Unknown'}")
     lines.append(f"**Domain Registered:** {reg_date or 'Unknown'}")
-    lines.append("")
 
     # Nameserver info
     if nameservers is not None:
@@ -61,7 +58,8 @@ def build_apprise_alert(
         if nameservers:
             ns_str = "\n".join(nameservers)
             lines.append(f"**Nameservers:**\n```\n{ns_str}\n```")
-        lines.append("")
+
+    lines.append("")
 
     # IP addresses
     if all_ips:
@@ -73,7 +71,6 @@ def build_apprise_alert(
             ip_lines.append(f"  ... and {len(all_ips) - 10} more")
         lines.append("**IP Addresses:**")
         lines.append("\n".join(ip_lines))
-        lines.append("")
 
     # Confirmed attacker IP matches
     if confirmed_attacker_ip_matches:
@@ -82,12 +79,8 @@ def build_apprise_alert(
             matched += f"\n  ... and {len(confirmed_attacker_ip_matches) - 20} more"
         lines.append("**Confirmed Attacker IP Match:**")
         lines.append(matched)
-        lines.append("")
 
-    # Email status
-    if EMAIL_ENABLED and email_status:
-        lines.append(f"**Email Status:** {email_status}")
-        lines.append("")
+    lines.append("")
 
     # All domains
     defanged_domains = [defang_domain(d) for d in all_domains]
@@ -96,6 +89,10 @@ def build_apprise_alert(
         domains_block += f"\n... and {len(all_domains) - 50} more"
     lines.append("**All Domains in Certificate:**")
     lines.append(f"```\n{domains_block}\n```")
+
+    # Email status
+    if EMAIL_ENABLED and email_status:
+        lines.append(f"**Email Status:** {email_status}")
 
     return "\n".join(lines)
 

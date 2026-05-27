@@ -231,6 +231,36 @@ class TestDiscordEmbedFields:
         cf_field = [f for f in embed["fields"] if "Cloudflare Nameservers" in f["name"]][0]
         assert "Yes" in cf_field["value"]
 
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_domain_registered_discord_timestamp(self):
+        embed = build_embed(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            reg_date="2024-01-15",
+        )
+        reg_field = [f for f in embed["fields"] if "Domain Registered" in f["name"]][0]
+        assert reg_field["value"] == "<t:1705276800:R>"
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_domain_registered_invalid_date(self):
+        embed = build_embed(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            reg_date="not-a-date",
+        )
+        reg_field = [f for f in embed["fields"] if "Domain Registered" in f["name"]][0]
+        assert reg_field["value"] == "not-a-date"
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_domain_registered_unknown(self):
+        embed = build_embed(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            reg_date=None,
+        )
+        reg_field = [f for f in embed["fields"] if "Domain Registered" in f["name"]][0]
+        assert reg_field["value"] == "Unknown (RDAP unavailable)"
+
 
 class TestDiscordAllDomainsBlock:
     """Tests for all domains rendering."""
@@ -305,3 +335,16 @@ class TestMinimalEmbed:
         ip_fields = [f for f in embed["fields"] if "Confirmed Attacker IP Match" in f["name"]]
         assert len(ip_fields) == 1
         assert "1.2.3.4" in ip_fields[0]["value"]
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_minimal_embed_domain_registered_timestamp(self):
+        embed = _build_minimal_embed(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            registrar="Namecheap",
+            cert_timestamp=None,
+            confirmed_attacker_ip_matches=None,
+            reg_date="2024-01-15",
+        )
+        reg_field = [f for f in embed["fields"] if "Domain Registered" in f["name"]][0]
+        assert reg_field["value"] == "<t:1705276800:R>"

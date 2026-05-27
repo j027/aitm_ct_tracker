@@ -266,14 +266,13 @@ def build_embed(
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
     }
 
-    # Add domain registration date field if available
+    # Add domain registration date field
     if reg_date:
         try:
             reg_dt = datetime.fromisoformat(reg_date)
             if reg_dt.tzinfo is None:
                 reg_dt = reg_dt.replace(tzinfo=timezone.utc)
-            days_old = (datetime.now(timezone.utc) - reg_dt).days
-            reg_date_display = f"{reg_date} ({days_old} days old)"
+            reg_date_display = f"<t:{int(reg_dt.timestamp())}:R>"
         except Exception:
             reg_date_display = reg_date
         embed["fields"].append(
@@ -460,7 +459,14 @@ def _build_minimal_embed(
         {"name": "Certificate Freshness", "value": freshness, "inline": True},
     ]
     if reg_date:
-        fields.append({"name": "📅 Domain Registered", "value": reg_date, "inline": True})
+        try:
+            reg_dt = datetime.fromisoformat(reg_date)
+            if reg_dt.tzinfo is None:
+                reg_dt = reg_dt.replace(tzinfo=timezone.utc)
+            reg_value = f"<t:{int(reg_dt.timestamp())}:R>"
+        except Exception:
+            reg_value = reg_date
+        fields.append({"name": "📅 Domain Registered", "value": reg_value, "inline": True})
     if confirmed_attacker_ip_matches:
         fields.append(
             {

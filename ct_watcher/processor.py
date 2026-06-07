@@ -244,7 +244,7 @@ def _handle_pattern_match(
             f" {', '.join(confirmed_attacker_ip_matches)}"
         )
     elif is_cloudflare and is_8char_hex:
-        print(f"    -> 8-char hex + Cloudflare nameservers")
+        print("    -> 8-char hex + Cloudflare nameservers")
 
     with state.lock:
         if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:

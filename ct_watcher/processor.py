@@ -29,7 +29,6 @@ from .email_sender import send_automated_target_email
 from .utils import extract_target_id, is_common_word_id
 
 
-
 def _print_stats() -> None:
     """Print processing stats every minute."""
     current_time = time.time()

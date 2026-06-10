@@ -38,4 +38,4 @@ class TestGetBaseDomain:
         assert get_base_domain("localhost") == "localhost"
 
     def test_two_parts(self):
-        assert get_base_domain("example.co.uk") == "co.uk"
+        assert get_base_domain("example.co.uk") == "example.co.uk"

@@ -4,7 +4,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ct_watcher.utils import calculate_freshness
+from ct_watcher.utils import calculate_freshness, get_base_domain
 
 
 class TestCalculateFreshness:
@@ -48,3 +48,17 @@ class TestCalculateFreshness:
         ts = 1700000000
         result = calculate_freshness(ts)
         assert result == "<t:1700000000:R>"
+
+
+class TestBaseDomain:
+    def test_simple_tld(self):
+        assert get_base_domain("api-abc.evil.com") == "evil.com"
+        assert get_base_domain("evil.com") == "evil.com"
+
+    def test_multi_part_tld(self):
+        assert get_base_domain("phish.co.uk") == "phish.co.uk"
+        assert get_base_domain("test.com.au") == "test.com.au"
+
+    def test_shared_hosting_platform(self):
+        assert get_base_domain("myapp.azurewebsites.net") == "azurewebsites.net"
+        assert get_base_domain("www.myapp.azurewebsites.net") == "azurewebsites.net"

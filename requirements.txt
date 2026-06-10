@@ -1,7 +1,7 @@
 python-dotenv==1.2.1
 requests==2.32.5
 websockets==16.0
-whoisit==4.0.3
+publicsuffixlist>=1.0
 pytest>=8.0
 dnspython[doh]>=2.6.0
 ruff>=0.15

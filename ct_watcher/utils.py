@@ -3,6 +3,8 @@
 import re
 import time
 
+from publicsuffixlist import PublicSuffixList
+
 from .config import COMMON_WORDS_5CHAR, COMMON_WORDS_8CHAR
 
 
@@ -49,8 +51,14 @@ def is_common_word_id(api_id: str | None) -> bool:
     return False
 
 
+_psl = PublicSuffixList(only_icann=True)
+
+
 def get_base_domain(domain: str) -> str:
-    """Extract base domain (last two parts) from a domain."""
+    """Extract the registrable domain using the Public Suffix List."""
+    suffix = _psl.privatesuffix(domain)
+    if suffix is not None:
+        return suffix
     parts = domain.split(".")
     if len(parts) >= 2:
         return ".".join(parts[-2:])

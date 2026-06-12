@@ -84,7 +84,7 @@ EMAIL_SUBJECT = os.environ.get(
 # Excludes known cloud/SaaS patterns
 DOMAIN_REGEX = re.compile(
     r"^api-[0-9a-zA-Z]{5,8}\."
-    r"(?!.*(?:upsolver\.com|ngrok\.|workers\.dev|multi\.software|"
+    r"(?!.*(?:upsolver\.com|ngrok\.|workers\.dev|pages\.dev|multi\.software|"
     r"huaweiclouds\.|amazonaws\.com|azure\.|googleusercontent\.com))",
     re.IGNORECASE,
 )

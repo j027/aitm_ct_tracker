@@ -325,8 +325,13 @@ def process_message(message_str: str) -> None:
                 # Check for known attacker domains first
                 if is_known_attacker_domain(domain, state.known_attacker_domains):
                     if _handle_known_attacker(
-                        domain, all_domains, cert_id, not_before,
-                        certkit_url, sha256, serial_number,
+                        domain,
+                        all_domains,
+                        cert_id,
+                        not_before,
+                        certkit_url,
+                        sha256,
+                        serial_number,
                     ):
                         break
                     continue
@@ -340,8 +345,13 @@ def process_message(message_str: str) -> None:
                         continue
 
                     if _handle_pattern_match(
-                        domain, all_domains, cert_id, not_before,
-                        certkit_url, sha256, serial_number,
+                        domain,
+                        all_domains,
+                        cert_id,
+                        not_before,
+                        certkit_url,
+                        sha256,
+                        serial_number,
                     ):
                         break
 

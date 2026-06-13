@@ -301,9 +301,7 @@ def build_embed(
         embed["fields"].append(
             {
                 "name": "Nameservers",
-                "value": f"```\n{nameservers_str}\n```"
-                if ns_list
-                else "Unable to retrieve",
+                "value": f"```\n{nameservers_str}\n```" if ns_list else "Unable to retrieve",
                 "inline": False,
             }
         )

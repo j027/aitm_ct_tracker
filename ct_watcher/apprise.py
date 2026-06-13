@@ -109,9 +109,7 @@ def send_apprise_alert(
     body = build_apprise_alert(alert)
 
     title = (
-        "🚨 CT Alert: Known Attacker"
-        if alert.is_known_attacker
-        else "⚠️ CT Alert: Potential Match"
+        "🚨 CT Alert: Known Attacker" if alert.is_known_attacker else "⚠️ CT Alert: Potential Match"
     )
 
     apobj = apprise.Apprise()

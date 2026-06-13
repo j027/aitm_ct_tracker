@@ -226,6 +226,7 @@ def build_embed(
     email_status_state: Optional[str] = None,
     mailto_link: Optional[str] = None,
     target_info: Optional[Dict[str, str]] = None,
+    certkit_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build Discord embed for alert."""
 
@@ -244,25 +245,34 @@ def build_embed(
         domains_block += f"\n... and {len(all_domains) - 50} more"
 
     # Build embed
+    initial_fields = [
+        {
+            "name": "Matched Domain",
+            "value": f"`{defang_domain(domain)}`",
+            "inline": False,
+        },
+        {"name": "Certificate Freshness", "value": freshness_str, "inline": True},
+        {"name": "Domain Count", "value": str(len(all_domains)), "inline": True},
+        {
+            "name": "Registrar",
+            "value": registrar if registrar else "Unknown",
+            "inline": True,
+        },
+    ]
+    if certkit_url:
+        initial_fields.append(
+            {
+                "name": "🔗 CertKit",
+                "value": f"[View on CertKit]({certkit_url})",
+                "inline": True,
+            }
+        )
     embed = {
         "title": "🚨 Certificate Transparency Alert"
         if is_known_attacker
         else "⚠️ Potential Target Match",
         "color": 0xFF0000 if is_known_attacker else 0xFFA500,
-        "fields": [
-            {
-                "name": "Matched Domain",
-                "value": f"`{defang_domain(domain)}`",
-                "inline": False,
-            },
-            {"name": "Certificate Freshness", "value": freshness_str, "inline": True},
-            {"name": "Domain Count", "value": str(len(all_domains)), "inline": True},
-            {
-                "name": "Registrar",
-                "value": registrar if registrar else "Unknown",
-                "inline": True,
-            },
-        ],
+        "fields": initial_fields,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()),
     }
 
@@ -520,6 +530,7 @@ def send_discord_alert(
     email_status_state: Optional[str] = None,
     extra_webhook_url: Optional[str] = None,
     target_info: Optional[Dict[str, str]] = None,
+    certkit_url: Optional[str] = None,
 ) -> None:
     """Send alert to Discord webhook."""
     webhook_url = DISCORD_WEBHOOK
@@ -554,6 +565,7 @@ def send_discord_alert(
         email_status_state=email_status_state,
         mailto_link=mailto_url,
         target_info=target_info,
+        certkit_url=certkit_url,
     )
 
     payload: Dict[str, Any] = {"embeds": [embed]}

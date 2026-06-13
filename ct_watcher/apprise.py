@@ -23,6 +23,7 @@ def build_apprise_alert(
     reg_date: Optional[str] = None,
     email_status: Optional[str] = None,
     target_info: Optional[Dict[str, str]] = None,
+    certkit_url: Optional[str] = None,
 ) -> str:
     """Build a simplified markdown alert for Apprise."""
 
@@ -50,6 +51,8 @@ def build_apprise_alert(
     lines.append(f"**Domain Count:** {len(all_domains)}")
     lines.append(f"**Registrar:** {registrar or 'Unknown'}")
     lines.append(f"**Domain Registered:** {reg_date or 'Unknown'}")
+    if certkit_url:
+        lines.append(f"**CertKit:** {certkit_url}")
 
     # Nameserver info
     if nameservers is not None:
@@ -112,6 +115,7 @@ def send_apprise_alert(
     email_status: Optional[str] = None,
     target_info: Optional[Dict[str, str]] = None,
     extra_urls: Optional[List[str]] = None,
+    certkit_url: Optional[str] = None,
 ) -> None:
     """Send alert via Apprise to configured URLs."""
 
@@ -138,6 +142,7 @@ def send_apprise_alert(
         reg_date=reg_date,
         email_status=email_status,
         target_info=target_info,
+        certkit_url=certkit_url,
     )
 
     title = "🚨 CT Alert: Known Attacker" if is_known_attacker else "⚠️ CT Alert: Potential Match"

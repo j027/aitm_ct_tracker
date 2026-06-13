@@ -57,6 +57,7 @@ def _dispatch_alert(
     email_status_state: str,
     target_info: dict | None,
     api_id: str | None,
+    certkit_url: str | None = None,
 ) -> None:
     """Send alert to all configured notification channels (Discord and/or Apprise)."""
     # Determine watched org channels
@@ -84,6 +85,7 @@ def _dispatch_alert(
             email_status_state=email_status_state,
             extra_webhook_url=watched_discord,
             target_info=target_info,
+            certkit_url=certkit_url,
         )
 
     # Apprise
@@ -103,11 +105,13 @@ def _dispatch_alert(
             email_status=email_status_details,
             target_info=target_info,
             extra_urls=watched_apprise,
+            certkit_url=certkit_url,
         )
 
 
 def _handle_known_attacker(
-    domain: str, all_domains: List[str], cert_id: int, not_before: float | None
+    domain: str, all_domains: List[str], cert_id: int, not_before: float | None,
+    certkit_url: str | None = None,
 ) -> bool:
     """Handle known attacker domain detection. Returns True if alert was sent."""
     with state.lock:
@@ -171,13 +175,15 @@ def _handle_known_attacker(
         email_status_state=email_status.state,
         target_info=target_info,
         api_id=api_id,
+        certkit_url=certkit_url,
     )
     state.total_alerts_count += 1
     return True
 
 
 def _handle_pattern_match(
-    domain: str, all_domains: List[str], cert_id: int, not_before: float | None
+    domain: str, all_domains: List[str], cert_id: int, not_before: float | None,
+    certkit_url: str | None = None,
 ) -> bool:
     """Handle pattern match detection. Returns True if alert was sent."""
     with state.lock:
@@ -275,6 +281,7 @@ def _handle_pattern_match(
         email_status_state=email_status.state,
         target_info=target_info,
         api_id=api_id,
+        certkit_url=certkit_url,
     )
     state.total_alerts_count += 1
     return True
@@ -302,6 +309,16 @@ def process_message(message_str: str) -> None:
 
         # Create unique certificate identifier
         cert_id = hash(tuple(sorted(d.strip().lower() for d in all_domains)))
+
+        # Build CertKit lookup URL (SHA-256 preferred, serial fallback)
+        sha256 = leaf_cert.get("sha256")
+        serial_number = leaf_cert.get("serial_number")
+        certkit_url = None
+        if sha256:
+            sha256_clean = sha256.replace(":", "")
+            certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?sha256={sha256_clean}"
+        elif serial_number:
+            certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?serial={serial_number}"
 
         # Check if already processed
         with state.lock:
@@ -337,7 +354,9 @@ def process_message(message_str: str) -> None:
 
                 # Check for known attacker domains first
                 if is_known_attacker_domain(domain, state.known_attacker_domains):
-                    if _handle_known_attacker(domain, all_domains, cert_id, not_before):
+                    if _handle_known_attacker(
+                        domain, all_domains, cert_id, not_before, certkit_url
+                    ):
                         break
                     continue
 
@@ -349,7 +368,7 @@ def process_message(message_str: str) -> None:
                         # Skip common words like 'local', 'admin', 'store'
                         continue
 
-                    if _handle_pattern_match(domain, all_domains, cert_id, not_before):
+                    if _handle_pattern_match(domain, all_domains, cert_id, not_before, certkit_url):
                         break
 
             except Exception as e:

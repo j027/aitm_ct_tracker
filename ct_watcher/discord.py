@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import quote, urlencode
 
 from .config import DISCORD_WEBHOOK, EMAIL_ENABLED, EMAIL_SUBJECT
+from .models import AlertInfo
 from .state import state
 from .utils import defang_domain, extract_target_id, calculate_freshness
 
@@ -211,24 +212,25 @@ def _build_namecheap_tweet_link(all_domains: List[str]) -> str:
 
 
 def build_embed(
-    domain: str,
-    all_domains: List[str],
-    cert_timestamp: Optional[float] = None,
-    is_known_attacker: bool = False,
-    registrar: Optional[str] = None,
-    is_cloudflare: bool = False,
-    nameservers: Optional[List[str]] = None,
-    all_ips: Optional[List[str]] = None,
-    non_cdn_ips: Optional[List[str]] = None,
-    confirmed_attacker_ip_matches: Optional[List[str]] = None,
-    reg_date: Optional[str] = None,
-    email_status: Optional[str] = None,
-    email_status_state: Optional[str] = None,
+    alert: AlertInfo,
     mailto_link: Optional[str] = None,
-    target_info: Optional[Dict[str, str]] = None,
-    certkit_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build Discord embed for alert."""
+    domain = alert.domain
+    all_domains = alert.all_domains
+    cert_timestamp = alert.not_before
+    is_known_attacker = alert.is_known_attacker
+    registrar = alert.registrar
+    is_cloudflare = alert.is_cloudflare
+    nameservers = alert.nameservers_list
+    all_ips = alert.all_ips
+    non_cdn_ips = alert.non_cdn_ips
+    confirmed_attacker_ip_matches = alert.confirmed_attacker_ip_matches
+    reg_date = alert.reg_date
+    email_status = alert.email_status_details
+    email_status_state = alert.email_status_state
+    target_info = alert.target_info
+    certkit_url = alert.certkit_url
 
     # Extract hex ID and look up target info
     hex_id = extract_target_id(domain)
@@ -447,15 +449,15 @@ def build_embed(
     return _sanitize_embed(embed)
 
 
-def _build_minimal_embed(
-    domain: str,
-    all_domains: List[str],
-    registrar: Optional[str],
-    cert_timestamp: Optional[float],
-    confirmed_attacker_ip_matches: Optional[List[str]],
-    reg_date: Optional[str],
-) -> Dict[str, Any]:
+def _build_minimal_embed(alert: AlertInfo) -> Dict[str, Any]:
     """Build a compact fallback embed when Discord rejects the full payload."""
+    domain = alert.domain
+    all_domains = alert.all_domains
+    registrar = alert.registrar
+    cert_timestamp = alert.not_before
+    confirmed_attacker_ip_matches = alert.confirmed_attacker_ip_matches
+    reg_date = alert.reg_date
+
     freshness = calculate_freshness(cert_timestamp, fmt="discord")
 
     fields = [
@@ -515,22 +517,8 @@ def _build_minimal_embed(
 
 
 def send_discord_alert(
-    domain: str,
-    all_domains: List[str],
-    cert_timestamp: Optional[float] = None,
-    is_known_attacker: bool = False,
-    registrar: Optional[str] = None,
-    is_cloudflare: bool = False,
-    nameservers: Optional[List[str]] = None,
-    all_ips: Optional[List[str]] = None,
-    non_cdn_ips: Optional[List[str]] = None,
-    confirmed_attacker_ip_matches: Optional[List[str]] = None,
-    reg_date: Optional[str] = None,
-    email_status: Optional[str] = None,
-    email_status_state: Optional[str] = None,
+    alert: AlertInfo,
     extra_webhook_url: Optional[str] = None,
-    target_info: Optional[Dict[str, str]] = None,
-    certkit_url: Optional[str] = None,
 ) -> None:
     """Send alert to Discord webhook."""
     webhook_url = DISCORD_WEBHOOK
@@ -541,32 +529,15 @@ def send_discord_alert(
     # Pre-compute mailto so we know whether trimming occurred before building the embed.
     mailto_url: Optional[str] = None
     omitted_count = 0
-    if EMAIL_ENABLED and email_status_state != "sent":
+    if EMAIL_ENABLED and alert.email_status_state != "sent":
         mailto_url, omitted_count = generate_mailto_link(
-            target_info=target_info,
-            domain=domain,
-            all_domains=all_domains,
-            non_cdn_ips=non_cdn_ips,
+            target_info=alert.target_info,
+            domain=alert.domain,
+            all_domains=alert.all_domains,
+            non_cdn_ips=alert.non_cdn_ips,
         )
 
-    embed = build_embed(
-        domain,
-        all_domains,
-        cert_timestamp,
-        is_known_attacker,
-        registrar,
-        is_cloudflare,
-        nameservers,
-        all_ips,
-        non_cdn_ips,
-        confirmed_attacker_ip_matches,
-        reg_date,
-        email_status,
-        email_status_state=email_status_state,
-        mailto_link=mailto_url,
-        target_info=target_info,
-        certkit_url=certkit_url,
-    )
+    embed = build_embed(alert, mailto_link=mailto_url)
 
     payload: Dict[str, Any] = {"embeds": [embed]}
 
@@ -575,15 +546,7 @@ def send_discord_alert(
         if resp.status_code >= 300:
             print(f"[!] Discord webhook error {resp.status_code}: {resp.text}")
             if resp.status_code == 400:
-                # One fallback retry with a minimal payload to avoid silent alert loss.
-                minimal_embed = _build_minimal_embed(
-                    domain=domain,
-                    all_domains=all_domains,
-                    registrar=registrar,
-                    cert_timestamp=cert_timestamp,
-                    confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
-                    reg_date=reg_date,
-                )
+                minimal_embed = _build_minimal_embed(alert)
                 minimal_payload: Dict[str, Any] = {"embeds": [minimal_embed]}
                 retry_resp = requests.post(webhook_url, json=minimal_payload, timeout=10)
                 if retry_resp.status_code >= 300:
@@ -592,29 +555,26 @@ def send_discord_alert(
                         f" {retry_resp.status_code}: {retry_resp.text}"
                     )
         else:
-            # Embed sent successfully — send follow-up plain message if mailto was trimmed.
             if omitted_count > 0:
-                defanged_all = [defang_domain(d) for d in all_domains]
+                defanged_all = [defang_domain(d) for d in alert.all_domains]
                 ioc_lines = "\n".join(defanged_all)
                 followup_content = (
                     f"📋 **Full IOC list** (mailto trimmed — {omitted_count} domain(s) omitted):\n"
                     f"```\n{ioc_lines}\n```"
                 )
-                # Discord content field limit is 2000 chars; truncate gracefully if needed.
                 if len(followup_content) > 2000:
                     followup_content = followup_content[:1985] + "\n```(truncated)"
                 try:
                     requests.post(webhook_url, json={"content": followup_content}, timeout=10)
                 except requests.exceptions.RequestException as e:
-                    print(f"[!] Discord follow-up IOC message failed for {domain}: {e}")
+                    print(f"[!] Discord follow-up IOC message failed for {alert.domain}: {e}")
     except requests.exceptions.Timeout:
-        print(f"[!] Discord webhook timeout for {domain}")
+        print(f"[!] Discord webhook timeout for {alert.domain}")
     except requests.exceptions.RequestException as e:
-        print(f"[!] Discord webhook request failed for {domain}: {e}")
+        print(f"[!] Discord webhook request failed for {alert.domain}: {e}")
 
-    # Mirror the same embed to the watched-org webhook if provided
     if extra_webhook_url:
         try:
             requests.post(extra_webhook_url, json=payload, timeout=10)
         except requests.exceptions.RequestException as e:
-            print(f"[!] Watched-org Discord webhook failed for {domain}: {e}")
+            print(f"[!] Watched-org Discord webhook failed for {alert.domain}: {e}")

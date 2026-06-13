@@ -26,6 +26,7 @@ from .ip_tracking import (
 from .discord import send_discord_alert
 from .apprise import send_apprise_alert
 from .email_sender import send_automated_target_email
+from .models import AlertInfo
 from .utils import extract_target_id, is_common_word_id
 
 
@@ -41,27 +42,10 @@ def _print_stats() -> None:
         state.reset_stats()
 
 
-def _dispatch_alert(
-    domain: str,
-    all_domains: List[str],
-    not_before: float | None,
-    is_known_attacker: bool,
-    registrar: str | None,
-    is_cloudflare: bool,
-    nameservers_list: List[str] | None,
-    all_ips: List[str] | None,
-    non_cdn_ips: List[str] | None,
-    confirmed_attacker_ip_matches: List[str] | None,
-    reg_date: str | None,
-    email_status_details: str,
-    email_status_state: str,
-    target_info: dict | None,
-    api_id: str | None,
-    certkit_url: str | None = None,
-) -> None:
+def _dispatch_alert(alert: AlertInfo) -> None:
     """Send alert to all configured notification channels (Discord and/or Apprise)."""
     # Determine watched org channels
-    is_watched = api_id is not None and api_id in state.watched_org_ids
+    is_watched = alert.api_id is not None and alert.api_id in state.watched_org_ids
     watched_discord = DISCORD_WEBHOOK_WATCHED if is_watched else None
     watched_apprise = None
     if is_watched and APPRISE_URLS_WATCHED:
@@ -69,49 +53,21 @@ def _dispatch_alert(
 
     # Discord
     if DISCORD_WEBHOOK:
-        send_discord_alert(
-            domain,
-            all_domains,
-            cert_timestamp=not_before,
-            is_known_attacker=is_known_attacker,
-            registrar=registrar,
-            is_cloudflare=is_cloudflare,
-            nameservers=nameservers_list,
-            all_ips=all_ips,
-            non_cdn_ips=non_cdn_ips,
-            confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
-            reg_date=reg_date,
-            email_status=email_status_details,
-            email_status_state=email_status_state,
-            extra_webhook_url=watched_discord,
-            target_info=target_info,
-            certkit_url=certkit_url,
-        )
+        send_discord_alert(alert, extra_webhook_url=watched_discord)
 
     # Apprise
     if APPRISE_URLS or watched_apprise:
-        send_apprise_alert(
-            domain,
-            all_domains,
-            cert_timestamp=not_before,
-            is_known_attacker=is_known_attacker,
-            registrar=registrar,
-            is_cloudflare=is_cloudflare,
-            nameservers=nameservers_list,
-            all_ips=all_ips,
-            non_cdn_ips=non_cdn_ips,
-            confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
-            reg_date=reg_date,
-            email_status=email_status_details,
-            target_info=target_info,
-            extra_urls=watched_apprise,
-            certkit_url=certkit_url,
-        )
+        send_apprise_alert(alert, extra_urls=watched_apprise)
 
 
 def _handle_known_attacker(
-    domain: str, all_domains: List[str], cert_id: int, not_before: float | None,
+    domain: str,
+    all_domains: List[str],
+    cert_id: int,
+    not_before: float | None,
     certkit_url: str | None = None,
+    sha256: str | None = None,
+    serial_number: str | None = None,
 ) -> bool:
     """Handle known attacker domain detection. Returns True if alert was sent."""
     with state.lock:
@@ -159,7 +115,7 @@ def _handle_known_attacker(
         api_id=api_id,
     )
 
-    _dispatch_alert(
+    alert = AlertInfo(
         domain=domain,
         all_domains=all_domains,
         not_before=not_before,
@@ -176,14 +132,22 @@ def _handle_known_attacker(
         target_info=target_info,
         api_id=api_id,
         certkit_url=certkit_url,
+        sha256=sha256,
+        serial_number=serial_number,
     )
+    _dispatch_alert(alert)
     state.total_alerts_count += 1
     return True
 
 
 def _handle_pattern_match(
-    domain: str, all_domains: List[str], cert_id: int, not_before: float | None,
+    domain: str,
+    all_domains: List[str],
+    cert_id: int,
+    not_before: float | None,
     certkit_url: str | None = None,
+    sha256: str | None = None,
+    serial_number: str | None = None,
 ) -> bool:
     """Handle pattern match detection. Returns True if alert was sent."""
     with state.lock:
@@ -265,7 +229,7 @@ def _handle_pattern_match(
         api_id=api_id,
     )
 
-    _dispatch_alert(
+    alert = AlertInfo(
         domain=domain,
         all_domains=all_domains,
         not_before=not_before,
@@ -282,7 +246,10 @@ def _handle_pattern_match(
         target_info=target_info,
         api_id=api_id,
         certkit_url=certkit_url,
+        sha256=sha256,
+        serial_number=serial_number,
     )
+    _dispatch_alert(alert)
     state.total_alerts_count += 1
     return True
 
@@ -355,7 +322,8 @@ def process_message(message_str: str) -> None:
                 # Check for known attacker domains first
                 if is_known_attacker_domain(domain, state.known_attacker_domains):
                     if _handle_known_attacker(
-                        domain, all_domains, cert_id, not_before, certkit_url
+                        domain, all_domains, cert_id, not_before,
+                        certkit_url, sha256, serial_number,
                     ):
                         break
                     continue
@@ -368,7 +336,10 @@ def process_message(message_str: str) -> None:
                         # Skip common words like 'local', 'admin', 'store'
                         continue
 
-                    if _handle_pattern_match(domain, all_domains, cert_id, not_before, certkit_url):
+                    if _handle_pattern_match(
+                        domain, all_domains, cert_id, not_before,
+                        certkit_url, sha256, serial_number,
+                    ):
                         break
 
             except Exception as e:

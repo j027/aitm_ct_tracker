@@ -1,31 +1,31 @@
 """Apprise alerting for CT Watcher."""
 
-from typing import List, Dict, Optional
+from typing import List, Optional
 
 import apprise
 
 from .config import APPRISE_URLS, EMAIL_ENABLED
+from .models import AlertInfo
 from .state import state
 from .utils import defang_domain, extract_target_id, calculate_freshness
 
 
-def build_apprise_alert(
-    domain: str,
-    all_domains: List[str],
-    cert_timestamp: Optional[float] = None,
-    is_known_attacker: bool = False,
-    registrar: Optional[str] = None,
-    is_cloudflare: bool = False,
-    nameservers: Optional[List[str]] = None,
-    all_ips: Optional[List[str]] = None,
-    non_cdn_ips: Optional[List[str]] = None,
-    confirmed_attacker_ip_matches: Optional[List[str]] = None,
-    reg_date: Optional[str] = None,
-    email_status: Optional[str] = None,
-    target_info: Optional[Dict[str, str]] = None,
-    certkit_url: Optional[str] = None,
-) -> str:
+def build_apprise_alert(alert: AlertInfo) -> str:
     """Build a simplified markdown alert for Apprise."""
+    domain = alert.domain
+    all_domains = alert.all_domains
+    cert_timestamp = alert.not_before
+    is_known_attacker = alert.is_known_attacker
+    registrar = alert.registrar
+    is_cloudflare = alert.is_cloudflare
+    nameservers = alert.nameservers_list
+    all_ips = alert.all_ips
+    non_cdn_ips = alert.non_cdn_ips
+    confirmed_attacker_ip_matches = alert.confirmed_attacker_ip_matches
+    reg_date = alert.reg_date
+    email_status = alert.email_status_details
+    target_info = alert.target_info
+    certkit_url = alert.certkit_url
 
     # Extract hex ID and look up target info
     hex_id = extract_target_id(domain)
@@ -101,21 +101,8 @@ def build_apprise_alert(
 
 
 def send_apprise_alert(
-    domain: str,
-    all_domains: List[str],
-    cert_timestamp: Optional[float] = None,
-    is_known_attacker: bool = False,
-    registrar: Optional[str] = None,
-    is_cloudflare: bool = False,
-    nameservers: Optional[List[str]] = None,
-    all_ips: Optional[List[str]] = None,
-    non_cdn_ips: Optional[List[str]] = None,
-    confirmed_attacker_ip_matches: Optional[List[str]] = None,
-    reg_date: Optional[str] = None,
-    email_status: Optional[str] = None,
-    target_info: Optional[Dict[str, str]] = None,
+    alert: AlertInfo,
     extra_urls: Optional[List[str]] = None,
-    certkit_url: Optional[str] = None,
 ) -> None:
     """Send alert via Apprise to configured URLs."""
 
@@ -128,24 +115,13 @@ def send_apprise_alert(
     if not urls:
         return
 
-    body = build_apprise_alert(
-        domain=domain,
-        all_domains=all_domains,
-        cert_timestamp=cert_timestamp,
-        is_known_attacker=is_known_attacker,
-        registrar=registrar,
-        is_cloudflare=is_cloudflare,
-        nameservers=nameservers,
-        all_ips=all_ips,
-        non_cdn_ips=non_cdn_ips,
-        confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
-        reg_date=reg_date,
-        email_status=email_status,
-        target_info=target_info,
-        certkit_url=certkit_url,
-    )
+    body = build_apprise_alert(alert)
 
-    title = "🚨 CT Alert: Known Attacker" if is_known_attacker else "⚠️ CT Alert: Potential Match"
+    title = (
+        "🚨 CT Alert: Known Attacker"
+        if alert.is_known_attacker
+        else "⚠️ CT Alert: Potential Match"
+    )
 
     apobj = apprise.Apprise()
     for url in urls:
@@ -154,4 +130,4 @@ def send_apprise_alert(
     try:
         apobj.notify(title=title, body=body, body_format=apprise.NotifyFormat.MARKDOWN)
     except Exception as e:
-        print(f"[!] Apprise notification failed for {domain}: {e}")
+        print(f"[!] Apprise notification failed for {alert.domain}: {e}")

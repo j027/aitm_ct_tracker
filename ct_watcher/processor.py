@@ -26,6 +26,7 @@ from .ip_tracking import (
 from .discord import send_discord_alert
 from .apprise import send_apprise_alert
 from .email_sender import send_automated_target_email
+from .logger import log_alert_to_csv
 from .models import AlertInfo
 from .utils import extract_target_id, is_common_word_id
 
@@ -44,6 +45,8 @@ def _print_stats() -> None:
 
 def _dispatch_alert(alert: AlertInfo) -> None:
     """Send alert to all configured notification channels (Discord and/or Apprise)."""
+    log_alert_to_csv(alert)
+
     # Determine watched org channels
     is_watched = alert.api_id is not None and alert.api_id in state.watched_org_ids
     watched_discord = DISCORD_WEBHOOK_WATCHED if is_watched else None

@@ -10,3 +10,4 @@ __pycache__/
 known_ips.txt
 watched_org_ids.txt
 cdn_ranges_cache.json
+alerts.csv

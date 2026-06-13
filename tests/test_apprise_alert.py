@@ -157,6 +157,24 @@ class TestAppriseAlertFields:
         assert "Yes" in result
         assert "ns1.cloudflare.com" in result
 
+    def test_certkit_url_in_output(self):
+        url = "https://www.certkit.io/tools/ct-logs/certificate?sha256=abcd1234"
+        result = build_apprise_alert(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            certkit_url=url,
+        )
+        assert "**CertKit:**" in result
+        assert url in result
+
+    def test_certkit_url_absent_when_none(self):
+        result = build_apprise_alert(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            certkit_url=None,
+        )
+        assert "CertKit:" not in result
+
 
 class TestAppriseAllDomainsBlock:
     """Tests for all domains rendering."""

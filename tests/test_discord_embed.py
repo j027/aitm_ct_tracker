@@ -291,6 +291,29 @@ class TestDiscordAllDomainsBlock:
         assert "api-529aed63[.]sub59[.]evil[.]com" not in domains_field["value"]
 
 
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_certkit_field_present(self):
+        url = "https://www.certkit.io/tools/ct-logs/certificate?sha256=abcd1234"
+        embed = build_embed(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            certkit_url=url,
+        )
+        certkit_fields = [f for f in embed["fields"] if f["name"] == "🔗 CertKit"]
+        assert len(certkit_fields) == 1
+        assert f"[View on CertKit]({url})" in certkit_fields[0]["value"]
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_certkit_field_absent_when_none(self):
+        embed = build_embed(
+            domain="api-529aed63.evil.com",
+            all_domains=["api-529aed63.evil.com"],
+            certkit_url=None,
+        )
+        certkit_fields = [f for f in embed["fields"] if f["name"] == "🔗 CertKit"]
+        assert len(certkit_fields) == 0
+
+
 class TestMinimalEmbed:
     """Tests for _build_minimal_embed fallback."""
 

@@ -284,10 +284,20 @@ def process_message(message_str: str) -> None:
         sha256 = leaf_cert.get("sha256")
         serial_number = leaf_cert.get("serial_number")
         certkit_url = None
+
+        # The IPng Networks 'Gouda2026h2' CT log serves empty cert data for
+        # PrecertLogEntry entries. certstream-server-go faithfully computes the
+        # hash of the empty byte sequence, resulting in SHA256("") =
+        # E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855.
+        # certkit cannot look up this bogus hash, but it can look up the
+        # serial number (after its ~4-5 minute indexing delay). Detect and
+        # skip the bogus value, falling through to the serial-based URL.
+        _EMPTY_SHA256 = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
         if sha256:
             sha256_clean = sha256.replace(":", "")
-            certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?sha256={sha256_clean}"
-        elif serial_number:
+            if sha256_clean.upper() != _EMPTY_SHA256:
+                certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?sha256={sha256_clean}"
+        if not certkit_url and serial_number:
             certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?serial={serial_number}"
 
         # Check if already processed

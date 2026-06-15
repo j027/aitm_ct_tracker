@@ -31,6 +31,32 @@ from .models import AlertInfo
 from .utils import extract_target_id, is_common_word_id
 
 
+# The IPng Networks 'Gouda2026h2' CT log serves empty cert data for
+# PrecertLogEntry entries. certstream-server-go faithfully computes the
+# hash of the empty byte sequence, resulting in SHA256("") =
+# E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855.
+# certkit cannot look up this bogus hash, but it can look up the
+# serial number (after its ~4-5 minute indexing delay). Detect and
+# skip the bogus value, falling through to the serial-based URL.
+_EMPTY_SHA256 = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+
+
+def _build_certkit_url(sha256: str | None, serial_number: str | None) -> str | None:
+    """Build a CertKit certificate details URL.
+
+    Uses the SHA-256 fingerprint as the preferred lookup key.  Falls back to
+    the serial number when the SHA-256 is missing or is the known-bogus
+    empty-string hash returned for IPng Networks precertificates.
+    """
+    if sha256:
+        clean = sha256.replace(":", "")
+        if clean.upper() != _EMPTY_SHA256:
+            return f"https://www.certkit.io/tools/ct-logs/certificate?sha256={clean}"
+    if serial_number:
+        return f"https://www.certkit.io/tools/ct-logs/certificate?serial={serial_number}"
+    return None
+
+
 def _print_stats() -> None:
     """Print processing stats every minute."""
     current_time = time.time()
@@ -280,27 +306,9 @@ def process_message(message_str: str) -> None:
         # Create unique certificate identifier
         cert_id = hash(tuple(sorted(d.strip().lower() for d in all_domains)))
 
-        # Build CertKit lookup URL (SHA-256 preferred, serial fallback)
         sha256 = leaf_cert.get("sha256")
         serial_number = leaf_cert.get("serial_number")
-        certkit_url = None
-
-        # The IPng Networks 'Gouda2026h2' CT log serves empty cert data for
-        # PrecertLogEntry entries. certstream-server-go faithfully computes the
-        # hash of the empty byte sequence, resulting in SHA256("") =
-        # E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855.
-        # certkit cannot look up this bogus hash, but it can look up the
-        # serial number (after its ~4-5 minute indexing delay). Detect and
-        # skip the bogus value, falling through to the serial-based URL.
-        _EMPTY_SHA256 = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
-        if sha256:
-            sha256_clean = sha256.replace(":", "")
-            if sha256_clean.upper() != _EMPTY_SHA256:
-                certkit_url = (
-                    f"https://www.certkit.io/tools/ct-logs/certificate?sha256={sha256_clean}"
-                )
-        if not certkit_url and serial_number:
-            certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?serial={serial_number}"
+        certkit_url = _build_certkit_url(sha256, serial_number)
 
         # Check if already processed
         with state.lock:

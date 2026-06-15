@@ -296,7 +296,9 @@ def process_message(message_str: str) -> None:
         if sha256:
             sha256_clean = sha256.replace(":", "")
             if sha256_clean.upper() != _EMPTY_SHA256:
-                certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?sha256={sha256_clean}"
+                certkit_url = (
+                    f"https://www.certkit.io/tools/ct-logs/certificate?sha256={sha256_clean}"
+                )
         if not certkit_url and serial_number:
             certkit_url = f"https://www.certkit.io/tools/ct-logs/certificate?serial={serial_number}"
 

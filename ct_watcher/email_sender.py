@@ -48,10 +48,15 @@ def _build_iocs_list(all_domains: List[str], non_cdn_ips: Optional[List[str]]) -
     return iocs_list
 
 
-def _build_email_body(all_domains: List[str], non_cdn_ips: Optional[List[str]]) -> str:
+def _build_email_body(
+    all_domains: List[str],
+    non_cdn_ips: Optional[List[str]],
+    duo_identifier: Optional[str] = None,
+) -> str:
     """Render email template and append automation disclaimer."""
     iocs_list = _build_iocs_list(all_domains, non_cdn_ips)
-    body = state.email_template.replace("{IOCS_LIST}", iocs_list).rstrip()
+    body = state.email_template.replace("{IOCS_LIST}", iocs_list)
+    body = body.replace("{DUO_IDENTIFIER}", duo_identifier or "").rstrip()
     return f"{body}\n\n{AUTOMATED_EMAIL_DISCLAIMER}\n"
 
 
@@ -88,8 +93,9 @@ def send_automated_target_email(
     if SMTP_ONLY_WATCHED and api_id not in state.watched_org_ids:
         return EmailSendStatus("skipped", "Skipped: only emailing watched orgs")
 
+    duo_identifier = f"https://api-{api_id}.duosecurity.com" if api_id else ""
     subject = EMAIL_SUBJECT.replace("{TARGET_NAME}", target_name)
-    body = _build_email_body(all_domains, non_cdn_ips)
+    body = _build_email_body(all_domains, non_cdn_ips, duo_identifier)
 
     message = EmailMessage()
     message["Subject"] = subject

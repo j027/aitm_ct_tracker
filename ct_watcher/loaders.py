@@ -17,7 +17,13 @@ from .config import (
 DEFAULT_EMAIL_TEMPLATE = """To the Security Team,
 
 I detected new SSL certificate registrations matching known AitM
-phishing patterns targeting your organization.
+phishing patterns that appear to be targeting your organization.
+
+Duo API hostname: {DUO_IDENTIFIER}
+
+Note: I attributed this Duo API hostname to your organization via OSINT
+research and it may not be 100% reliable. If you believe this reached the
+wrong organization, please let me know. It helps me improve accuracy.
 
 IOCs:
 {IOCS_LIST}

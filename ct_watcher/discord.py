@@ -38,6 +38,7 @@ def generate_mailto_link(
     domain: str,
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]] = None,
+    api_id: Optional[str] = None,
 ) -> Tuple[str, int]:
     """Generate a mailto link with pre-filled threat intel email.
 
@@ -59,6 +60,8 @@ def generate_mailto_link(
 
     # Split template around the IOC placeholder so we can measure overhead
     template = state.email_template
+    duo_identifier = f"https://api-{api_id}.duosecurity.com" if api_id else ""
+    template = template.replace("{DUO_IDENTIFIER}", duo_identifier)
     iocs_placeholder = "{IOCS_LIST}"
     if iocs_placeholder in template:
         template_before, template_after = template.split(iocs_placeholder, 1)
@@ -415,7 +418,7 @@ def build_embed(
                 mailto_link
                 if mailto_link is not None
                 else generate_mailto_link(
-                    target_info, alert.domain, alert.all_domains, alert.non_cdn_ips
+                    target_info, alert.domain, alert.all_domains, alert.non_cdn_ips, alert.api_id
                 )[0]
             )
             embed["fields"].append(
@@ -471,7 +474,9 @@ def _build_minimal_embed(alert: AlertInfo) -> Dict[str, Any]:
         )
 
     if EMAIL_ENABLED:
-        minimal_mailto, _ = generate_mailto_link(None, alert.domain, alert.all_domains, None)
+        minimal_mailto, _ = generate_mailto_link(
+            None, alert.domain, alert.all_domains, None, alert.api_id
+        )
         fields.append(
             {
                 "name": "📣 Actions",
@@ -517,6 +522,7 @@ def send_discord_alert(
             domain=alert.domain,
             all_domains=alert.all_domains,
             non_cdn_ips=alert.non_cdn_ips,
+            api_id=alert.api_id,
         )
 
     embed = build_embed(alert, mailto_link=mailto_url)

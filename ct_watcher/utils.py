@@ -75,6 +75,40 @@ def extract_all_target_ids(all_domains: List[str]) -> Dict[str, str]:
     return results
 
 
+def ids_for_target(
+    api_ids: List[str],
+    target_email: str | None,
+    target_mapping: Dict[str, Dict[str, str]],
+) -> List[str]:
+    """Get the api-IDs belonging to the given target (matched by email).
+
+    If ``target_email`` is falsy, returns the first ID (or empty list).
+    """
+    if not target_email:
+        return api_ids[:1] if api_ids else []
+    return [a for a in api_ids if target_mapping.get(a, {}).get("email") == target_email]
+
+
+def format_duo_ids(
+    api_ids: List[str],
+    target_mapping: Dict[str, Dict[str, str]],
+) -> tuple[str, str | None]:
+    """Format Duo IDs and target names for display.
+
+    Returns a ``(duo_ids_str, targets_str_or_None)`` tuple.
+    For a single ID, returns ``("``abc``", None)`` — no paired targets needed.
+    For multiple IDs, returns the comma-separated IDs and matching targets.
+    """
+    if len(api_ids) <= 1:
+        return f"`{api_ids[0]}`" if api_ids else "", None
+    duo_parts = [f"`{aid}`" for aid in api_ids]
+    target_parts = []
+    for aid in api_ids:
+        ti = target_mapping.get(aid)
+        target_parts.append(ti["name"] if ti else "(unknown)")
+    return ", ".join(duo_parts), ", ".join(target_parts)
+
+
 _psl = PublicSuffixList(only_icann=True)
 
 

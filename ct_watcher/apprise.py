@@ -7,7 +7,7 @@ import apprise
 from .config import APPRISE_URLS, EMAIL_ENABLED
 from .models import AlertInfo
 from .state import state
-from .utils import defang_domain, calculate_freshness
+from .utils import defang_domain, calculate_freshness, format_duo_ids
 
 
 def build_apprise_alert(alert: AlertInfo) -> str:
@@ -33,16 +33,12 @@ def build_apprise_alert(alert: AlertInfo) -> str:
         lines.append(f"**Target Organization:** {target_info['name']} ({target_info['email']})")
 
     if alert.api_ids:
-        if len(alert.api_ids) > 1:
-            duo_parts = [f"`{aid}`" for aid in alert.api_ids]
-            target_parts = []
-            for aid in alert.api_ids:
-                ti = state.target_mapping.get(aid)
-                target_parts.append(ti["name"] if ti else "(unknown)")
-            lines.append(f"**Duo IDs:** {', '.join(duo_parts)}")
-            lines.append(f"**Targets:** {', '.join(target_parts)}")
+        duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping)
+        if targets_str is not None:
+            lines.append(f"**Duo IDs:** {duo_str}")
+            lines.append(f"**Targets:** {targets_str}")
         else:
-            lines.append(f"**Duo ID:** `{alert.api_ids[0]}`")
+            lines.append(f"**Duo ID:** {duo_str}")
 
     lines.append("")
 

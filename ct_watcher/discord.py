@@ -9,7 +9,7 @@ from urllib.parse import quote, urlencode
 from .config import DISCORD_WEBHOOK, EMAIL_ENABLED, EMAIL_SUBJECT
 from .models import AlertInfo
 from .state import state
-from .utils import defang_domain, calculate_freshness
+from .utils import defang_domain, calculate_freshness, format_duo_ids, ids_for_target
 
 
 # Discord embed hard limits
@@ -37,14 +37,9 @@ def _ids_for_target(alert: AlertInfo, target_info: Optional[Dict[str, str]]) -> 
     """Get api_ids belonging to the given target (by email), or all if no target."""
     if not alert.api_ids:
         return None
-    if target_info and target_info.get("email"):
-        ids = [
-            a
-            for a in alert.api_ids
-            if state.target_mapping.get(a, {}).get("email") == target_info["email"]
-        ]
-        return ids if ids else None
-    return alert.api_ids
+    target_email = target_info.get("email") if target_info else None
+    ids = ids_for_target(alert.api_ids, target_email, state.target_mapping)
+    return ids if ids else None
 
 
 def generate_mailto_link(
@@ -339,23 +334,19 @@ def build_embed(
         embed["color"] = 0xFF0000
 
     if alert.api_ids:
-        if len(alert.api_ids) > 1:
-            duo_parts = [f"`{aid}`" for aid in alert.api_ids]
-            target_parts = []
-            for aid in alert.api_ids:
-                ti = state.target_mapping.get(aid)
-                target_parts.append(ti["name"] if ti else "(unknown)")
+        duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping)
+        if targets_str is not None:
             embed["fields"].append(
                 {
                     "name": "🔑 Duo IDs",
-                    "value": ", ".join(duo_parts),
+                    "value": duo_str,
                     "inline": False,
                 }
             )
             embed["fields"].append(
                 {
                     "name": "🎯 Targets",
-                    "value": ", ".join(target_parts),
+                    "value": targets_str,
                     "inline": False,
                 }
             )
@@ -363,7 +354,7 @@ def build_embed(
             embed["fields"].append(
                 {
                     "name": "🔑 Duo ID",
-                    "value": f"`{alert.api_ids[0]}`",
+                    "value": duo_str,
                     "inline": False,
                 }
             )

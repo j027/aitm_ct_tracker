@@ -28,7 +28,7 @@ from .apprise import send_apprise_alert
 from .email_sender import send_automated_target_email
 from .logger import log_alert_to_csv
 from .models import AlertInfo
-from .utils import extract_target_id, is_common_word_id
+from .utils import extract_target_id, is_common_word_id, ids_for_target
 
 
 # The IPng Networks 'Gouda2026h2' CT log serves empty cert data for
@@ -90,6 +90,118 @@ def _dispatch_alert(alert: AlertInfo) -> None:
         send_apprise_alert(alert, extra_urls=watched_apprise)
 
 
+def _finalize_alert(
+    domain: str,
+    all_domains: List[str],
+    not_before: float | None,
+    is_known_attacker: bool,
+    registrar: str | None,
+    is_cloudflare: bool,
+    nameservers_list: List[str] | None,
+    all_ips: List[str] | None,
+    non_cdn_ips: List[str] | None,
+    confirmed_attacker_ip_matches: List[str] | None,
+    reg_date: str | None,
+    api_ids: List[str],
+    api_id: str | None,
+    certkit_url: str | None,
+    sha256: str | None,
+    serial_number: str | None,
+) -> None:
+    """Resolve targets, send per-target emails, build and dispatch alert.
+
+    Called by both ``_handle_known_attacker`` and ``_handle_pattern_match``
+    after their handler-specific detection logic is complete.
+    """
+    # Resolve primary target: try api_id first, then scan all api_ids
+    target_info = state.target_mapping.get(api_id) if api_id else None
+    if not target_info and api_ids:
+        for aid in api_ids:
+            if aid in state.target_mapping:
+                api_id = aid
+                target_info = state.target_mapping[aid]
+                break
+
+    # Send emails — one per distinct target
+    email_results = []
+    primary_ids = ids_for_target(
+        api_ids,
+        target_info.get("email") if target_info else None,
+        state.target_mapping,
+    )
+    status = send_automated_target_email(
+        target_info=target_info,
+        domain=domain,
+        all_domains=all_domains,
+        non_cdn_ips=non_cdn_ips,
+        target_api_ids=primary_ids,
+    )
+    email_results.append((target_info["name"] if target_info else "unknown", status))
+
+    if len(api_ids) > 1:
+        sent_emails = (
+            {target_info["email"]} if (target_info and target_info.get("email")) else set()
+        )
+        for aid in api_ids:
+            if aid == api_id:
+                continue
+            ti = state.target_mapping.get(aid)
+            if ti and ti.get("email") and ti["email"] not in sent_emails:
+                sent_emails.add(ti["email"])
+                ti_ids = ids_for_target(api_ids, ti["email"], state.target_mapping)
+                status = send_automated_target_email(
+                    target_info=ti,
+                    domain=domain,
+                    all_domains=all_domains,
+                    non_cdn_ips=non_cdn_ips,
+                    target_api_ids=ti_ids,
+                )
+                email_results.append((ti["name"], status))
+
+    # Build combined email status
+    lines = []
+    sent_count = 0
+    for name, s in email_results:
+        if s.state == "sent":
+            sent_count += 1
+            lines.append(f"✅ {name} — {s.details}")
+        elif s.state == "failed":
+            lines.append(f"❌ {name} — {s.details}")
+        else:
+            lines.append(f"⏭️ {name} — {s.details}")
+
+    email_status_details = "\n".join(lines) if lines else "No emails sent"
+    if sent_count > 0:
+        email_status_state = "sent"
+    elif any(s.state == "failed" for _, s in email_results):
+        email_status_state = "failed"
+    else:
+        email_status_state = "skipped"
+
+    alert = AlertInfo(
+        domain=domain,
+        all_domains=all_domains,
+        not_before=not_before,
+        is_known_attacker=is_known_attacker,
+        registrar=registrar,
+        is_cloudflare=is_cloudflare,
+        nameservers_list=nameservers_list,
+        all_ips=all_ips,
+        non_cdn_ips=non_cdn_ips,
+        confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
+        reg_date=reg_date,
+        email_status_details=email_status_details,
+        email_status_state=email_status_state,
+        target_info=target_info,
+        api_ids=api_ids,
+        certkit_url=certkit_url,
+        sha256=sha256,
+        serial_number=serial_number,
+    )
+    _dispatch_alert(alert)
+    state.total_alerts_count += 1
+
+
 def _handle_known_attacker(
     domain: str,
     all_domains: List[str],
@@ -140,79 +252,7 @@ def _handle_known_attacker(
                     break
 
     api_id = api_ids[0] if api_ids else None
-    target_info = state.target_mapping.get(api_id) if api_id else None
-
-    if not target_info and api_ids:
-        for aid in api_ids:
-            if aid in state.target_mapping:
-                api_id = aid
-                target_info = state.target_mapping[aid]
-                break
-
-    email_results = []
-
-    if target_info and target_info.get("email"):
-        primary_ids = [
-            a
-            for a in api_ids
-            if state.target_mapping.get(a, {}).get("email") == target_info["email"]
-        ]
-    else:
-        primary_ids = [api_id] if api_id else []
-
-    status = send_automated_target_email(
-        target_info=target_info,
-        domain=domain,
-        all_domains=all_domains,
-        non_cdn_ips=non_cdn_ips,
-        target_api_ids=primary_ids,
-    )
-    email_results.append((target_info["name"] if target_info else "unknown", status))
-
-    if len(api_ids) > 1:
-        sent_emails = (
-            {target_info["email"]} if (target_info and target_info.get("email")) else set()
-        )
-        for aid in api_ids:
-            if aid == api_id:
-                continue
-            ti = state.target_mapping.get(aid)
-            if ti and ti.get("email") and ti["email"] not in sent_emails:
-                sent_emails.add(ti["email"])
-                ti_ids = [
-                    a
-                    for a in api_ids
-                    if state.target_mapping.get(a, {}).get("email") == ti["email"]
-                ]
-                status = send_automated_target_email(
-                    target_info=ti,
-                    domain=domain,
-                    all_domains=all_domains,
-                    non_cdn_ips=non_cdn_ips,
-                    target_api_ids=ti_ids,
-                )
-                email_results.append((ti["name"], status))
-
-    lines = []
-    sent_count = 0
-    for name, s in email_results:
-        if s.state == "sent":
-            sent_count += 1
-            lines.append(f"✅ {name} — {s.details}")
-        elif s.state == "failed":
-            lines.append(f"❌ {name} — {s.details}")
-        else:
-            lines.append(f"⏭️ {name} — {s.details}")
-
-    email_status_details = "\n".join(lines) if lines else "No emails sent"
-    if sent_count > 0:
-        email_status_state = "sent"
-    elif any(s.state == "failed" for _, s in email_results):
-        email_status_state = "failed"
-    else:
-        email_status_state = "skipped"
-
-    alert = AlertInfo(
+    _finalize_alert(
         domain=domain,
         all_domains=all_domains,
         not_before=not_before,
@@ -224,16 +264,12 @@ def _handle_known_attacker(
         non_cdn_ips=non_cdn_ips,
         confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
         reg_date=reg_date,
-        email_status_details=email_status_details,
-        email_status_state=email_status_state,
-        target_info=target_info,
         api_ids=api_ids,
+        api_id=api_id,
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
     )
-    _dispatch_alert(alert)
-    state.total_alerts_count += 1
     return True
 
 
@@ -324,79 +360,7 @@ def _handle_pattern_match(
             state.clear_alerted_certificates()
         state.alerted_certificates.add(cert_id)
 
-    target_info = state.target_mapping.get(api_id) if api_id else None
-
-    if not target_info and api_ids:
-        for aid in api_ids:
-            if aid in state.target_mapping:
-                api_id = aid
-                target_info = state.target_mapping[aid]
-                break
-
-    email_results = []
-
-    if target_info and target_info.get("email"):
-        primary_ids = [
-            a
-            for a in api_ids
-            if state.target_mapping.get(a, {}).get("email") == target_info["email"]
-        ]
-    else:
-        primary_ids = [api_id] if api_id else []
-
-    status = send_automated_target_email(
-        target_info=target_info,
-        domain=domain,
-        all_domains=all_domains,
-        non_cdn_ips=non_cdn_ips,
-        target_api_ids=primary_ids,
-    )
-    email_results.append((target_info["name"] if target_info else "unknown", status))
-
-    if len(api_ids) > 1:
-        sent_emails = (
-            {target_info["email"]} if (target_info and target_info.get("email")) else set()
-        )
-        for aid in api_ids:
-            if aid == api_id:
-                continue
-            ti = state.target_mapping.get(aid)
-            if ti and ti.get("email") and ti["email"] not in sent_emails:
-                sent_emails.add(ti["email"])
-                ti_ids = [
-                    a
-                    for a in api_ids
-                    if state.target_mapping.get(a, {}).get("email") == ti["email"]
-                ]
-                status = send_automated_target_email(
-                    target_info=ti,
-                    domain=domain,
-                    all_domains=all_domains,
-                    non_cdn_ips=non_cdn_ips,
-                    target_api_ids=ti_ids,
-                )
-                email_results.append((ti["name"], status))
-
-    lines = []
-    sent_count = 0
-    for name, s in email_results:
-        if s.state == "sent":
-            sent_count += 1
-            lines.append(f"✅ {name} — {s.details}")
-        elif s.state == "failed":
-            lines.append(f"❌ {name} — {s.details}")
-        else:
-            lines.append(f"⏭️ {name} — {s.details}")
-
-    email_status_details = "\n".join(lines) if lines else "No emails sent"
-    if sent_count > 0:
-        email_status_state = "sent"
-    elif any(s.state == "failed" for _, s in email_results):
-        email_status_state = "failed"
-    else:
-        email_status_state = "skipped"
-
-    alert = AlertInfo(
+    _finalize_alert(
         domain=domain,
         all_domains=all_domains,
         not_before=not_before,
@@ -408,16 +372,12 @@ def _handle_pattern_match(
         non_cdn_ips=non_cdn_ips,
         confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
         reg_date=reg_date,
-        email_status_details=email_status_details,
-        email_status_state=email_status_state,
-        target_info=target_info,
         api_ids=api_ids,
+        api_id=api_id,
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
     )
-    _dispatch_alert(alert)
-    state.total_alerts_count += 1
     return True
 
 

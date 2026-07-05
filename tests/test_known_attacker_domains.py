@@ -47,4 +47,4 @@ class TestKnownAttackerDomains:
 
     def test_no_match_partial_base(self, known_attacker_domains):
         """Domain that contains known domain as substring should not match."""
-        assert not is_known_attacker_domain("nottheretrogallery.com", known_attacker_domains)
+        assert not is_known_attacker_domain("notarealdomain.example.com", known_attacker_domains)

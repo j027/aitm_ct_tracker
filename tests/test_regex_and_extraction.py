@@ -14,7 +14,7 @@ class TestDomainRegex:
     @pytest.mark.parametrize(
         "domain",
         [
-            "api-62a1edm3.ghg.theretrogallery.com",
+            "api-62a1edm3.ghg.example.com",
             "api-3dse1.example.com",
             "api-529aed63.example.com",
             "api-a540f86.example.com",
@@ -71,7 +71,7 @@ class TestExtractTargetId:
     @pytest.mark.parametrize(
         "domain,expected",
         [
-            ("api-62a1edm3.ghg.theretrogallery.com", "62a1edm3"),
+            ("api-62a1edm3.ghg.example.com", "62a1edm3"),
             ("api-3dse1.example.com", "3dse1"),
             ("api-529aed63.example.com", "529aed63"),
             ("api-a540f86.example.com", "a540f86"),
@@ -195,14 +195,14 @@ class TestExtractAllTargetIds:
 
     def test_multiple_ids(self):
         domains = [
-            "api-1d0c2651.mdj.gunesrentacar.com",
-            "api-62a1edm3.mdj.gunesrentacar.com",
-            "other.mdj.gunesrentacar.com",
+            "api-1d0c2651.mdj.example.com",
+            "api-62a1edm3.mdj.example.com",
+            "other.mdj.example.com",
         ]
         result = extract_all_target_ids(domains)
         assert result == {
-            "1d0c2651": "api-1d0c2651.mdj.gunesrentacar.com",
-            "62a1edm3": "api-62a1edm3.mdj.gunesrentacar.com",
+            "1d0c2651": "api-1d0c2651.mdj.example.com",
+            "62a1edm3": "api-62a1edm3.mdj.example.com",
         }
 
     def test_duplicate_ids_use_first_domain(self):

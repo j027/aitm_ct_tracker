@@ -9,7 +9,7 @@ from ct_watcher.utils import match_keyword_targets
 class TestMatchKeywordTargets:
     def test_single_keyword_match(self):
         domains = [
-            "adfmorgan.gobac.shadylakesranch.com",
+            "adfmorgan.evil.example.com",
             "www.example.com",
         ]
         kt = {
@@ -22,12 +22,12 @@ class TestMatchKeywordTargets:
         }
         result = match_keyword_targets(domains, kt)
         assert "morgan" in result
-        assert "adfmorgan.gobac.shadylakesranch.com" in result["morgan"]
+        assert "adfmorgan.evil.example.com" in result["morgan"]
 
     def test_multiple_keywords_same_target(self):
         domains = [
-            "adfmorgan.gobac.shadylakesranch.com",
-            "mailladfmro.gobac.shadylakesranch.com",
+            "adfmorgan.evil.example.com",
+            "mailladfmro.evil.example.com",
             "other.example.com",
         ]
         kt = {
@@ -43,7 +43,7 @@ class TestMatchKeywordTargets:
         assert len(result["morgan"]) == 2
 
     def test_case_insensitive(self):
-        domains = ["Adfmorgan.GOBAC.shadylakesranch.COM"]
+        domains = ["Adfmorgan.EVIL.example.COM"]
         kt = {
             "morgan": {
                 "type": "keyword",
@@ -69,7 +69,7 @@ class TestMatchKeywordTargets:
         assert result == {}
 
     def test_keyword_falls_back_to_id(self):
-        domains = ["adfmorgan.gobac.shadylakesranch.com"]
+        domains = ["adfmorgan.evil.example.com"]
         kt = {
             "morgan": {
                 "type": "keyword",
@@ -82,8 +82,8 @@ class TestMatchKeywordTargets:
 
     def test_multiple_targets(self):
         domains = [
-            "adfmorgan.gobac.shadylakesranch.com",
-            "csffdcale.gobac.shadylakesranch.com",
+            "adfmorgan.evil.example.com",
+            "csffdcale.evil.example.com",
         ]
         kt = {
             "morgan": {

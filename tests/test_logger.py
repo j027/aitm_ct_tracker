@@ -25,7 +25,7 @@ def _make_alert(**overrides):
         email_status_details="Email sent successfully",
         email_status_state="sent",
         target_info={"name": "Test University", "email": "security@test.edu"},
-        api_id="529aed63",
+        api_ids=["529aed63"],
         certkit_url="https://www.certkit.io/tools/ct-logs/certificate?sha256=abcd1234",
         sha256="ab:cd:12:34:56:78",
         serial_number="04ABC123",
@@ -141,7 +141,7 @@ class TestCsvLogging:
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
             tmp = f.name
         try:
-            alert = _make_alert(api_id=None)
+            alert = _make_alert(api_ids=[])
             log_alert_to_csv(alert, log_path=tmp)
 
             with open(tmp) as f:

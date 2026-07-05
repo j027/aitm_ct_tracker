@@ -32,6 +32,7 @@ _COLUMNS = [
     "api_id",
     "email_status_state",
     "email_status_details",
+    "api_ids",
 ]
 
 _LIST_FIELDS = {
@@ -40,6 +41,7 @@ _LIST_FIELDS = {
     "all_ips",
     "non_cdn_ips",
     "confirmed_attacker_ip_matches",
+    "api_ids",
 }
 
 
@@ -49,6 +51,7 @@ def log_alert_to_csv(alert: AlertInfo, log_path: str | None = None) -> None:
     row = asdict(alert)
     row["alert_timestamp"] = datetime.now(timezone.utc).isoformat()
     row["domain_count"] = len(alert.all_domains)
+    row["api_id"] = alert.api_ids[0] if alert.api_ids else ""
     for key in _LIST_FIELDS:
         val = row.get(key)
         if val:

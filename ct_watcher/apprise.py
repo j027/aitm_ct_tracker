@@ -7,21 +7,21 @@ import apprise
 from .config import APPRISE_URLS, EMAIL_ENABLED
 from .models import AlertInfo
 from .state import state
-from .utils import defang_domain, extract_target_id, calculate_freshness
+from .utils import defang_domain, calculate_freshness
 
 
 def build_apprise_alert(alert: AlertInfo) -> str:
     """Build a simplified markdown alert for Apprise."""
 
-    # Look up target info: prefer alert's target_info, fallback to state lookup by hex ID
+    # Look up target info: prefer alert's target_info, fallback to any known ID in api_ids
     target_info = alert.target_info
-    hex_id = extract_target_id(alert.domain)
-    if target_info is None and hex_id and hex_id in state.target_mapping:
-        target_info = state.target_mapping[hex_id]
+    if target_info is None and alert.api_ids:
+        for aid in alert.api_ids:
+            if aid in state.target_mapping:
+                target_info = state.target_mapping[aid]
+                break
 
     lines = []
-
-    # Header: title, matched domain, target info
     title = (
         "🚨 KNOWN ATTACKER DOMAIN DETECTED"
         if alert.is_known_attacker
@@ -31,8 +31,18 @@ def build_apprise_alert(alert: AlertInfo) -> str:
     lines.append(f"**Matched Domain:** `{defang_domain(alert.domain)}`")
     if target_info:
         lines.append(f"**Target Organization:** {target_info['name']} ({target_info['email']})")
-    elif hex_id:
-        lines.append(f"**Hex ID:** `{hex_id}` (Unknown Target)")
+
+    if alert.api_ids:
+        if len(alert.api_ids) > 1:
+            duo_parts = [f"`{aid}`" for aid in alert.api_ids]
+            target_parts = []
+            for aid in alert.api_ids:
+                ti = state.target_mapping.get(aid)
+                target_parts.append(ti["name"] if ti else "(unknown)")
+            lines.append(f"**Duo IDs:** {', '.join(duo_parts)}")
+            lines.append(f"**Targets:** {', '.join(target_parts)}")
+        else:
+            lines.append(f"**Duo ID:** `{alert.api_ids[0]}`")
 
     lines.append("")
 

@@ -30,7 +30,6 @@ def _make_alert(**overrides):
         email_status_details="",
         email_status_state="pending",
         target_info=None,
-        api_id=None,
         certkit_url=None,
         sha256=None,
         serial_number=None,
@@ -57,7 +56,7 @@ class TestAppriseAlertTitle:
             _make_alert(
                 domain="api-529aed63.evil.com",
                 all_domains=["api-529aed63.evil.com"],
-                is_known_attacker=False,
+                api_ids=["529aed63"],
             )
         )
         assert "Potential Target Match" in result
@@ -88,6 +87,7 @@ class TestAppriseTargetResolution:
             _make_alert(
                 domain="api-529aed63.evil.com",
                 all_domains=["api-529aed63.evil.com"],
+                api_ids=["529aed63"],
             )
         )
         assert "Test University" in result
@@ -102,11 +102,11 @@ class TestAppriseTargetResolution:
             _make_alert(
                 domain="api-abcdef.evil.com",
                 all_domains=["api-abcdef.evil.com"],
+                api_ids=["abcdef"],
             )
         )
-        assert "Hex ID:" in result
+        assert "Duo ID:" in result
         assert "abcdef" in result
-        assert "Unknown Target" in result
 
     def test_no_api_id_no_target(self):
         """Bare domain with no api-ID and no target_info passed."""

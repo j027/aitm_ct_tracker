@@ -51,12 +51,13 @@ def _build_iocs_list(all_domains: List[str], non_cdn_ips: Optional[List[str]]) -
 def _build_email_body(
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]],
-    duo_identifier: Optional[str] = None,
+    duo_identifiers: List[str],
 ) -> str:
     """Render email template and append automation disclaimer."""
     iocs_list = _build_iocs_list(all_domains, non_cdn_ips)
     body = state.email_template.replace("{IOCS_LIST}", iocs_list)
-    body = body.replace("{DUO_IDENTIFIER}", duo_identifier or "").rstrip()
+    duo_str = "\n".join(duo_identifiers) if duo_identifiers else ""
+    body = body.replace("{DUO_IDENTIFIER}", duo_str).rstrip()
     return f"{body}\n\n{AUTOMATED_EMAIL_DISCLAIMER}\n"
 
 
@@ -70,9 +71,20 @@ def send_automated_target_email(
     domain: str,
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]],
-    api_id: Optional[str] = None,
+    target_api_ids: List[str] | None = None,
 ) -> EmailSendStatus:
-    """Send automated SMTP email when policy requirements are met."""
+    """Send automated SMTP email when policy requirements are met.
+
+    Args:
+        target_info: Target organization info (name, email).
+        domain: The matched domain from the certificate.
+        all_domains: All domains in the certificate.
+        non_cdn_ips: Non-CDN resolved IPs.
+        target_api_ids: Duo IDs belonging to this target (empty list = no identifiers).
+    """
+    if target_api_ids is None:
+        target_api_ids = []
+
     if not EMAIL_ENABLED:
         return EmailSendStatus("skipped", "Skipped: email feature disabled")
 
@@ -90,12 +102,12 @@ def send_automated_target_email(
     if not target_email:
         return EmailSendStatus("skipped", "Skipped: target email missing")
 
-    if SMTP_ONLY_WATCHED and api_id not in state.watched_org_ids:
+    if SMTP_ONLY_WATCHED and not any(aid in state.watched_org_ids for aid in target_api_ids):
         return EmailSendStatus("skipped", "Skipped: only emailing watched orgs")
 
-    duo_identifier = f"https://api-{api_id}.duosecurity.com" if api_id else ""
+    duo_urls = [f"https://api-{aid}.duosecurity.com" for aid in target_api_ids]
     subject = EMAIL_SUBJECT.replace("{TARGET_NAME}", target_name)
-    body = _build_email_body(all_domains, non_cdn_ips, duo_identifier)
+    body = _build_email_body(all_domains, non_cdn_ips, duo_urls)
 
     message = EmailMessage()
     message["Subject"] = subject

@@ -1,6 +1,6 @@
 """Shared data models for CT Watcher."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List
 
 
@@ -22,7 +22,7 @@ class AlertInfo:
     email_status_details: str
     email_status_state: str
     target_info: Dict[str, str] | None
-    api_id: str | None
+    api_ids: List[str] = field(default_factory=list)
     certkit_url: str | None = None
     sha256: str | None = None
     serial_number: str | None = None

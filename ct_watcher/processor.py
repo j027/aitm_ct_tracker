@@ -74,7 +74,8 @@ def _dispatch_alert(alert: AlertInfo) -> None:
     log_alert_to_csv(alert)
 
     # Determine watched org channels
-    is_watched = alert.api_id is not None and alert.api_id in state.watched_org_ids
+    primary_id = alert.api_ids[0] if alert.api_ids else None
+    is_watched = primary_id is not None and primary_id in state.watched_org_ids
     watched_discord = DISCORD_WEBHOOK_WATCHED if is_watched else None
     watched_apprise = None
     if is_watched and APPRISE_URLS_WATCHED:
@@ -97,6 +98,7 @@ def _handle_known_attacker(
     certkit_url: str | None = None,
     sha256: str | None = None,
     serial_number: str | None = None,
+    api_ids: List[str] | None = None,
 ) -> bool:
     """Handle known attacker domain detection. Returns True if alert was sent."""
     with state.lock:
@@ -124,25 +126,91 @@ def _handle_known_attacker(
     )
 
     # Known attacker domains are always high confidence
-    api_id = extract_target_id(domain)
+    if api_ids is None:
+        api_ids = []
+    if not api_ids:
+        aid = extract_target_id(domain)
+        if aid:
+            api_ids = [aid]
+        if not api_ids:
+            for d in all_domains:
+                candidate_id = extract_target_id(d.strip().lower())
+                if candidate_id:
+                    api_ids = [candidate_id]
+                    break
+
+    api_id = api_ids[0] if api_ids else None
     target_info = state.target_mapping.get(api_id) if api_id else None
 
-    # If no target found from the matched domain, scan all cert domains for an api-<id> beacon
-    if not target_info:
-        for d in all_domains:
-            candidate_id = extract_target_id(d.strip().lower())
-            if candidate_id in state.target_mapping:
-                api_id = candidate_id
-                target_info = state.target_mapping[api_id]
+    if not target_info and api_ids:
+        for aid in api_ids:
+            if aid in state.target_mapping:
+                api_id = aid
+                target_info = state.target_mapping[aid]
                 break
 
-    email_status = send_automated_target_email(
+    email_results = []
+
+    if target_info and target_info.get("email"):
+        primary_ids = [
+            a
+            for a in api_ids
+            if state.target_mapping.get(a, {}).get("email") == target_info["email"]
+        ]
+    else:
+        primary_ids = [api_id] if api_id else []
+
+    status = send_automated_target_email(
         target_info=target_info,
         domain=domain,
         all_domains=all_domains,
         non_cdn_ips=non_cdn_ips,
-        api_id=api_id,
+        target_api_ids=primary_ids,
     )
+    email_results.append((target_info["name"] if target_info else "unknown", status))
+
+    if len(api_ids) > 1:
+        sent_emails = (
+            {target_info["email"]} if (target_info and target_info.get("email")) else set()
+        )
+        for aid in api_ids:
+            if aid == api_id:
+                continue
+            ti = state.target_mapping.get(aid)
+            if ti and ti.get("email") and ti["email"] not in sent_emails:
+                sent_emails.add(ti["email"])
+                ti_ids = [
+                    a
+                    for a in api_ids
+                    if state.target_mapping.get(a, {}).get("email") == ti["email"]
+                ]
+                status = send_automated_target_email(
+                    target_info=ti,
+                    domain=domain,
+                    all_domains=all_domains,
+                    non_cdn_ips=non_cdn_ips,
+                    target_api_ids=ti_ids,
+                )
+                email_results.append((ti["name"], status))
+
+    lines = []
+    sent_count = 0
+    for name, s in email_results:
+        if s.state == "sent":
+            sent_count += 1
+            lines.append(f"✅ {name} — {s.details}")
+        elif s.state == "failed":
+            lines.append(f"❌ {name} — {s.details}")
+        else:
+            lines.append(f"⏭️ {name} — {s.details}")
+
+    email_status_details = "\n".join(lines) if lines else "No emails sent"
+    if sent_count > 0:
+        email_status_state = "sent"
+    elif any(s.state == "failed" for _, s in email_results):
+        email_status_state = "failed"
+    else:
+        email_status_state = "skipped"
 
     alert = AlertInfo(
         domain=domain,
@@ -156,10 +224,10 @@ def _handle_known_attacker(
         non_cdn_ips=non_cdn_ips,
         confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
         reg_date=reg_date,
-        email_status_details=email_status.details,
-        email_status_state=email_status.state,
+        email_status_details=email_status_details,
+        email_status_state=email_status_state,
         target_info=target_info,
-        api_id=api_id,
+        api_ids=api_ids,
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
@@ -177,6 +245,7 @@ def _handle_pattern_match(
     certkit_url: str | None = None,
     sha256: str | None = None,
     serial_number: str | None = None,
+    api_ids: List[str] | None = None,
 ) -> bool:
     """Handle pattern match detection. Returns True if alert was sent."""
     with state.lock:
@@ -202,17 +271,19 @@ def _handle_pattern_match(
     confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
 
     # Determine confidence level
-    # High confidence only if:
+    # High confidence if:
     # 1. The extracted ID matches a known target (in target_mapping), OR
-    # 2. Cloudflare nameservers AND multiple domains AND 8-char hex ID
+    # 2. Cloudflare nameservers AND multiple domains AND 8-char hex ID, OR
+    # 3. Confirmed attacker IP match
     #
     # Unknown 5-char alphanumeric IDs are always low confidence to avoid
     # alert fatigue
     api_id = extract_target_id(domain)
-    is_known_target = api_id in state.target_mapping
+    if api_ids is None:
+        api_ids = [api_id] if api_id else []
+    is_known_target = any(aid in state.target_mapping for aid in api_ids) if api_ids else False
     is_8char_hex = api_id and len(api_id) == 8 and all(c in "0123456789abcdef" for c in api_id)
 
-    # High confidence requires known target OR a suspicious infra pattern OR a confirmed IP match.
     has_confirmed_attacker_ip_match = bool(confirmed_attacker_ip_matches)
     high_confidence = bool(
         is_known_target
@@ -234,8 +305,12 @@ def _handle_pattern_match(
         f" IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})"
     )
 
+    if len(api_ids) > 1:
+        print(f"    -> Multi-Duo ({len(api_ids)} IDs): {', '.join(api_ids)}")
     if is_known_target and api_id:
-        print(f"    -> Known target: {state.target_mapping[api_id]['name']}")
+        known_targets = [aid for aid in api_ids if aid in state.target_mapping]
+        for kt in known_targets:
+            print(f"    -> Known target: {state.target_mapping[kt]['name']}")
     elif has_confirmed_attacker_ip_match:
         print(
             f"    -> Escalated to HIGH via known attacker IP match:"
@@ -250,13 +325,76 @@ def _handle_pattern_match(
         state.alerted_certificates.add(cert_id)
 
     target_info = state.target_mapping.get(api_id) if api_id else None
-    email_status = send_automated_target_email(
+
+    if not target_info and api_ids:
+        for aid in api_ids:
+            if aid in state.target_mapping:
+                api_id = aid
+                target_info = state.target_mapping[aid]
+                break
+
+    email_results = []
+
+    if target_info and target_info.get("email"):
+        primary_ids = [
+            a
+            for a in api_ids
+            if state.target_mapping.get(a, {}).get("email") == target_info["email"]
+        ]
+    else:
+        primary_ids = [api_id] if api_id else []
+
+    status = send_automated_target_email(
         target_info=target_info,
         domain=domain,
         all_domains=all_domains,
         non_cdn_ips=non_cdn_ips,
-        api_id=api_id,
+        target_api_ids=primary_ids,
     )
+    email_results.append((target_info["name"] if target_info else "unknown", status))
+
+    if len(api_ids) > 1:
+        sent_emails = (
+            {target_info["email"]} if (target_info and target_info.get("email")) else set()
+        )
+        for aid in api_ids:
+            if aid == api_id:
+                continue
+            ti = state.target_mapping.get(aid)
+            if ti and ti.get("email") and ti["email"] not in sent_emails:
+                sent_emails.add(ti["email"])
+                ti_ids = [
+                    a
+                    for a in api_ids
+                    if state.target_mapping.get(a, {}).get("email") == ti["email"]
+                ]
+                status = send_automated_target_email(
+                    target_info=ti,
+                    domain=domain,
+                    all_domains=all_domains,
+                    non_cdn_ips=non_cdn_ips,
+                    target_api_ids=ti_ids,
+                )
+                email_results.append((ti["name"], status))
+
+    lines = []
+    sent_count = 0
+    for name, s in email_results:
+        if s.state == "sent":
+            sent_count += 1
+            lines.append(f"✅ {name} — {s.details}")
+        elif s.state == "failed":
+            lines.append(f"❌ {name} — {s.details}")
+        else:
+            lines.append(f"⏭️ {name} — {s.details}")
+
+    email_status_details = "\n".join(lines) if lines else "No emails sent"
+    if sent_count > 0:
+        email_status_state = "sent"
+    elif any(s.state == "failed" for _, s in email_results):
+        email_status_state = "failed"
+    else:
+        email_status_state = "skipped"
 
     alert = AlertInfo(
         domain=domain,
@@ -270,10 +408,10 @@ def _handle_pattern_match(
         non_cdn_ips=non_cdn_ips,
         confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
         reg_date=reg_date,
-        email_status_details=email_status.details,
-        email_status_state=email_status.state,
+        email_status_details=email_status_details,
+        email_status_state=email_status_state,
         target_info=target_info,
-        api_id=api_id,
+        api_ids=api_ids,
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
@@ -329,12 +467,14 @@ def process_message(message_str: str) -> None:
         state.cert_count += 1
         _print_stats()
 
-        # Process each domain
+        # First pass: collect all Duo api-IDs and known attacker domains
+        known_attacker_domains = []
+        matched_patterns = {}
+
         for d in all_domains:
             try:
                 domain = d.strip().lower()
 
-                # Dedupe
                 with state.lock:
                     if domain in state.seen_domains:
                         continue
@@ -342,42 +482,44 @@ def process_message(message_str: str) -> None:
                         state.clear_seen_domains()
                     state.seen_domains.add(domain)
 
-                # Check for known attacker domains first
                 if is_known_attacker_domain(domain, state.known_attacker_domains):
-                    if _handle_known_attacker(
-                        domain,
-                        all_domains,
-                        cert_id,
-                        not_before,
-                        certkit_url,
-                        sha256,
-                        serial_number,
-                    ):
-                        break
+                    known_attacker_domains.append(domain)
                     continue
 
-                # Pattern match
                 if DOMAIN_REGEX.match(domain):
-                    # Extract the ID portion and check if it's a common word
-                    api_id = extract_target_id(domain)
-                    if api_id and is_common_word_id(api_id):
-                        # Skip common words like 'local', 'admin', 'store'
-                        continue
-
-                    if _handle_pattern_match(
-                        domain,
-                        all_domains,
-                        cert_id,
-                        not_before,
-                        certkit_url,
-                        sha256,
-                        serial_number,
-                    ):
-                        break
+                    aid = extract_target_id(domain)
+                    if aid and not is_common_word_id(aid):
+                        if aid not in matched_patterns:
+                            matched_patterns[aid] = domain
 
             except Exception as e:
                 print(f"[!] Error processing domain {d}: {e}")
                 continue
+
+        all_api_ids = sorted(matched_patterns.keys())
+
+        if known_attacker_domains:
+            _handle_known_attacker(
+                known_attacker_domains[0],
+                all_domains,
+                cert_id,
+                not_before,
+                certkit_url,
+                sha256,
+                serial_number,
+                api_ids=all_api_ids,
+            )
+        elif matched_patterns:
+            _handle_pattern_match(
+                list(matched_patterns.values())[0],
+                all_domains,
+                cert_id,
+                not_before,
+                certkit_url,
+                sha256,
+                serial_number,
+                api_ids=all_api_ids,
+            )
 
     except Exception as e:
         print(f"[!] Error in process_message: {e}")

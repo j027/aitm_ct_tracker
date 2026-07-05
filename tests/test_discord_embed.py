@@ -29,7 +29,6 @@ def _make_alert(**overrides):
         email_status_details="",
         email_status_state="pending",
         target_info=None,
-        api_id=None,
         certkit_url=None,
         sha256=None,
         serial_number=None,
@@ -97,6 +96,7 @@ class TestDiscordTargetResolution:
                 _make_alert(
                     domain="api-529aed63.evil.com",
                     all_domains=["api-529aed63.evil.com"],
+                    api_ids=["529aed63"],
                 )
             )
             target_fields = [f for f in embed["fields"] if "Target Organization" in f["name"]]
@@ -118,12 +118,12 @@ class TestDiscordTargetResolution:
                     domain="api-abcdef.evil.com",
                     all_domains=["api-abcdef.evil.com"],
                     is_known_attacker=False,
+                    api_ids=["abcdef"],
                 )
             )
-            hex_fields = [f for f in embed["fields"] if f["name"] == "Hex ID"]
-            assert len(hex_fields) == 1
-            assert "abcdef" in hex_fields[0]["value"]
-            assert "Unknown Target" in hex_fields[0]["value"]
+            duo_fields = [f for f in embed["fields"] if f["name"] == "🔑 Duo ID"]
+            assert len(duo_fields) == 1
+            assert "abcdef" in duo_fields[0]["value"]
         finally:
             state.state.target_mapping = original
 

@@ -2,10 +2,11 @@
 
 import re
 import time
+from typing import Dict, List
 
 from publicsuffixlist import PublicSuffixList
 
-from .config import COMMON_WORDS_5CHAR, COMMON_WORDS_8CHAR
+from .config import COMMON_WORDS_5CHAR, COMMON_WORDS_8CHAR, DOMAIN_REGEX
 
 
 def defang_domain(domain: str) -> str:
@@ -49,6 +50,29 @@ def is_common_word_id(api_id: str | None) -> bool:
         return api_id_lower in COMMON_WORDS_8CHAR
 
     return False
+
+
+def extract_all_target_ids(all_domains: List[str]) -> Dict[str, str]:
+    """Extract all unique Duo api-IDs from a certificate's domain list.
+
+    Scans every domain for an ``api-<ID>.`` pattern, filters out common-word
+    false positives, and returns a dict mapping each unique api-ID to the
+    first domain it was found on.
+
+    Returns:
+        ``{api_id: first_matching_domain}``, empty dict if none found.
+    """
+    results: Dict[str, str] = {}
+    for d in all_domains:
+        domain = d.strip().lower()
+        if not DOMAIN_REGEX.match(domain):
+            continue
+        api_id = extract_target_id(domain)
+        if not api_id or is_common_word_id(api_id):
+            continue
+        if api_id not in results:
+            results[api_id] = domain
+    return results
 
 
 _psl = PublicSuffixList(only_icann=True)

@@ -32,7 +32,7 @@ SAMPLE_ALERT = AlertInfo(
     email_status_details="Email sent successfully",
     email_status_state="sent",
     target_info={"name": "Test University", "email": "security@test.edu"},
-    api_id="529aed63",
+    api_ids=["529aed63"],
 )
 
 

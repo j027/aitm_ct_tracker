@@ -9,7 +9,7 @@ from urllib.parse import quote, urlencode
 from .config import DISCORD_WEBHOOK, EMAIL_ENABLED, EMAIL_SUBJECT
 from .models import AlertInfo
 from .state import state
-from .utils import defang_domain, extract_target_id, calculate_freshness
+from .utils import defang_domain, calculate_freshness
 
 
 # Discord embed hard limits
@@ -33,12 +33,26 @@ MAILTO_URL_MAX = 1000
 TWITTER_TEXT_LIMIT = 280
 
 
+def _ids_for_target(alert: AlertInfo, target_info: Optional[Dict[str, str]]) -> Optional[List[str]]:
+    """Get api_ids belonging to the given target (by email), or all if no target."""
+    if not alert.api_ids:
+        return None
+    if target_info and target_info.get("email"):
+        ids = [
+            a
+            for a in alert.api_ids
+            if state.target_mapping.get(a, {}).get("email") == target_info["email"]
+        ]
+        return ids if ids else None
+    return alert.api_ids
+
+
 def generate_mailto_link(
     target_info: Optional[Dict[str, str]],
     domain: str,
     all_domains: List[str],
     non_cdn_ips: Optional[List[str]] = None,
-    api_id: Optional[str] = None,
+    api_ids: Optional[List[str]] = None,
 ) -> Tuple[str, int]:
     """Generate a mailto link with pre-filled threat intel email.
 
@@ -60,8 +74,9 @@ def generate_mailto_link(
 
     # Split template around the IOC placeholder so we can measure overhead
     template = state.email_template
-    duo_identifier = f"https://api-{api_id}.duosecurity.com" if api_id else ""
-    template = template.replace("{DUO_IDENTIFIER}", duo_identifier)
+    duo_urls = [f"https://api-{aid}.duosecurity.com" for aid in api_ids] if api_ids else []
+    duo_str = "\n".join(duo_urls)
+    template = template.replace("{DUO_IDENTIFIER}", duo_str)
     iocs_placeholder = "{IOCS_LIST}"
     if iocs_placeholder in template:
         template_before, template_after = template.split(iocs_placeholder, 1)
@@ -220,11 +235,13 @@ def build_embed(
 ) -> Dict[str, Any]:
     """Build Discord embed for alert."""
 
-    # Look up target info: prefer alert's target_info, fallback to state lookup by hex ID
+    # Look up target info: prefer alert's target_info, fallback to any known ID in api_ids
     target_info = alert.target_info
-    hex_id = extract_target_id(alert.domain)
-    if target_info is None and hex_id and hex_id in state.target_mapping:
-        target_info = state.target_mapping[hex_id]
+    if target_info is None and alert.api_ids:
+        for aid in alert.api_ids:
+            if aid in state.target_mapping:
+                target_info = state.target_mapping[aid]
+                break
 
     # Calculate certificate freshness using Discord relative timestamp
     freshness_str = calculate_freshness(alert.not_before, fmt="discord")
@@ -320,15 +337,36 @@ def build_embed(
             },
         )
         embed["color"] = 0xFF0000
-    elif hex_id and not alert.is_known_attacker:
-        embed["fields"].insert(
-            1,
-            {
-                "name": "Hex ID",
-                "value": f"`{hex_id}` (Unknown Target)",
-                "inline": False,
-            },
-        )
+
+    if alert.api_ids:
+        if len(alert.api_ids) > 1:
+            duo_parts = [f"`{aid}`" for aid in alert.api_ids]
+            target_parts = []
+            for aid in alert.api_ids:
+                ti = state.target_mapping.get(aid)
+                target_parts.append(ti["name"] if ti else "(unknown)")
+            embed["fields"].append(
+                {
+                    "name": "🔑 Duo IDs",
+                    "value": ", ".join(duo_parts),
+                    "inline": False,
+                }
+            )
+            embed["fields"].append(
+                {
+                    "name": "🎯 Targets",
+                    "value": ", ".join(target_parts),
+                    "inline": False,
+                }
+            )
+        else:
+            embed["fields"].append(
+                {
+                    "name": "🔑 Duo ID",
+                    "value": f"`{alert.api_ids[0]}`",
+                    "inline": False,
+                }
+            )
 
     # Add alert type indicator
     if alert.is_known_attacker:
@@ -414,11 +452,12 @@ def build_embed(
             )
         else:
             # Use pre-computed mailto_link if provided by send_discord_alert, else generate inline
+            primary_ids = _ids_for_target(alert, target_info)
             link = (
                 mailto_link
                 if mailto_link is not None
                 else generate_mailto_link(
-                    target_info, alert.domain, alert.all_domains, alert.non_cdn_ips, alert.api_id
+                    target_info, alert.domain, alert.all_domains, alert.non_cdn_ips, primary_ids
                 )[0]
             )
             embed["fields"].append(
@@ -475,7 +514,7 @@ def _build_minimal_embed(alert: AlertInfo) -> Dict[str, Any]:
 
     if EMAIL_ENABLED:
         minimal_mailto, _ = generate_mailto_link(
-            None, alert.domain, alert.all_domains, None, alert.api_id
+            None, alert.domain, alert.all_domains, None, alert.api_ids or None
         )
         fields.append(
             {
@@ -517,12 +556,13 @@ def send_discord_alert(
     mailto_url: Optional[str] = None
     omitted_count = 0
     if EMAIL_ENABLED and alert.email_status_state != "sent":
+        mailto_ids = _ids_for_target(alert, alert.target_info)
         mailto_url, omitted_count = generate_mailto_link(
             target_info=alert.target_info,
             domain=alert.domain,
             all_domains=alert.all_domains,
             non_cdn_ips=alert.non_cdn_ips,
-            api_id=alert.api_id,
+            api_ids=mailto_ids,
         )
 
     embed = build_embed(alert, mailto_link=mailto_url)

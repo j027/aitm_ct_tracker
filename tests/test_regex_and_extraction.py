@@ -5,7 +5,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from ct_watcher.config import DOMAIN_REGEX
-from ct_watcher.utils import extract_target_id, is_common_word_id
+from ct_watcher.utils import extract_target_id, extract_all_target_ids, is_common_word_id
 
 
 class TestDomainRegex:
@@ -183,3 +183,70 @@ class TestIsCommonWordId:
     def test_empty_string(self):
         assert is_common_word_id("") is False
         assert is_common_word_id(None) is False
+
+
+class TestExtractAllTargetIds:
+    """Tests for extract_all_target_ids multi-ID extraction."""
+
+    def test_single_id(self):
+        domains = ["api-3dse1.phish.example.com", "www.phish.example.com"]
+        result = extract_all_target_ids(domains)
+        assert result == {"3dse1": "api-3dse1.phish.example.com"}
+
+    def test_multiple_ids(self):
+        domains = [
+            "api-1d0c2651.mdj.gunesrentacar.com",
+            "api-62a1edm3.mdj.gunesrentacar.com",
+            "other.mdj.gunesrentacar.com",
+        ]
+        result = extract_all_target_ids(domains)
+        assert result == {
+            "1d0c2651": "api-1d0c2651.mdj.gunesrentacar.com",
+            "62a1edm3": "api-62a1edm3.mdj.gunesrentacar.com",
+        }
+
+    def test_duplicate_ids_use_first_domain(self):
+        domains = [
+            "api-3dse1.first.example.com",
+            "api-3dse1.second.example.com",
+        ]
+        result = extract_all_target_ids(domains)
+        assert result == {"3dse1": "api-3dse1.first.example.com"}
+
+    def test_filters_common_words(self):
+        domains = ["api-admin.example.com", "api-3dse1.example.com"]
+        result = extract_all_target_ids(domains)
+        assert result == {"3dse1": "api-3dse1.example.com"}
+
+    def test_empty_domains(self):
+        assert extract_all_target_ids([]) == {}
+
+    def test_no_matches(self):
+        domains = ["www.example.com", "mail.example.com"]
+        assert extract_all_target_ids(domains) == {}
+
+    def test_ids_with_digits_not_filtered(self):
+        domains = ["api-adm1n.example.com", "api-3dse1.example.com"]
+        result = extract_all_target_ids(domains)
+        assert "adm1n" in result
+        assert "3dse1" in result
+
+    def test_case_insensitive(self):
+        domains = ["API-3DSE1.example.com", "api-62a1edm3.EXAMPLE.com"]
+        result = extract_all_target_ids(domains)
+        assert result == {
+            "3dse1": "api-3dse1.example.com",
+            "62a1edm3": "api-62a1edm3.example.com",
+        }
+
+    def test_known_attacker_domains_are_included(self):
+        domains = [
+            "known-bad-non-api.phish.com",
+            "api-3dse1.phish.com",
+            "api-62a1edm3.phish.com",
+        ]
+        result = extract_all_target_ids(domains)
+        assert result == {
+            "3dse1": "api-3dse1.phish.com",
+            "62a1edm3": "api-62a1edm3.phish.com",
+        }

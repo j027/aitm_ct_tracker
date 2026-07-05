@@ -33,6 +33,8 @@ _COLUMNS = [
     "email_status_state",
     "email_status_details",
     "api_ids",
+    "keyword",
+    "keyword_match_domains",
 ]
 
 _LIST_FIELDS = {
@@ -42,6 +44,7 @@ _LIST_FIELDS = {
     "non_cdn_ips",
     "confirmed_attacker_ip_matches",
     "api_ids",
+    "keyword_match_domains",
 }
 
 
@@ -64,6 +67,8 @@ def log_alert_to_csv(alert: AlertInfo, log_path: str | None = None) -> None:
     else:
         row["target_name"] = ""
         row["target_email"] = ""
+    if row.get("keyword") is None:
+        row["keyword"] = ""
     del row["target_info"]
     del row["not_before"]
 

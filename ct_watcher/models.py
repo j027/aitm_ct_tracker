@@ -26,3 +26,5 @@ class AlertInfo:
     certkit_url: str | None = None
     sha256: str | None = None
     serial_number: str | None = None
+    keyword: str | None = None
+    keyword_match_domains: List[str] | None = None

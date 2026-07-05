@@ -89,6 +89,62 @@ def ids_for_target(
     return [a for a in api_ids if target_mapping.get(a, {}).get("email") == target_email]
 
 
+def match_keyword_targets(
+    all_domains: List[str],
+    keyword_targets: Dict[str, Dict],
+) -> Dict[str, list]:
+    """Scan certificate domains for keyword-target matches.
+
+    For each domain split by ``.``, each subdomain part is checked for
+    each keyword (case-insensitive substring match).
+
+    Returns:
+        ``{keyword_id: [matching_domain, ...]}`` for targets with at
+        least one matching domain.
+    """
+    results: Dict[str, list] = {}
+
+    for domain in all_domains:
+        d = domain.strip().lower()
+        parts = d.split(".")
+        for kw_id, target in keyword_targets.items():
+            keywords = target.get("keywords", [kw_id])
+            if any(kw.lower() in part for part in parts for kw in keywords):
+                results.setdefault(kw_id, []).append(d)
+
+    return results
+
+
+_DUO_ATTRIBUTION_NOTE = (
+    "Note: I attributed this Duo API hostname to your organization via OSINT"
+    " research and it may not be 100% reliable. If you believe this reached"
+    " the wrong organization, please let me know. It helps me improve"
+    " accuracy."
+)
+
+_KEYWORD_ATTRIBUTION_NOTE = (
+    "Note: This detection is based on a distinctive keyword match. The"
+    " target organization may not use Duo, or may only use it for some"
+    " users. If you believe this is a false positive or reached the wrong"
+    " organization, please let me know."
+)
+
+
+def build_identifier_text(api_ids: List[str] | None = None, keyword: str | None = None) -> str:
+    """Build the identifier block for email templates.
+
+    Returns the full ``{IDENTIFIER}`` replacement text — label, value, and
+    attribution note — appropriate for the target type.
+    """
+    if keyword:
+        return f"Keyword match: {keyword}\n\n{_KEYWORD_ATTRIBUTION_NOTE}"
+    if api_ids:
+        duo_urls = [f"https://api-{aid}.duosecurity.com" for aid in api_ids]
+        duo_str = "\n".join(duo_urls)
+        return f"Duo API hostname:\n{duo_str}\n\n{_DUO_ATTRIBUTION_NOTE}"
+    return ""
+
+
 def format_duo_ids(
     api_ids: List[str],
     target_mapping: Dict[str, Dict[str, str]],

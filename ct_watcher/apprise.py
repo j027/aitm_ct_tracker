@@ -32,7 +32,15 @@ def build_apprise_alert(alert: AlertInfo) -> str:
     if target_info:
         lines.append(f"**Target Organization:** {target_info['name']} ({target_info['email']})")
 
-    if alert.api_ids:
+    if alert.keyword:
+        lines.append(f"**Keyword:** `{alert.keyword}`")
+        kw_target = state.keyword_targets.get(alert.keyword, {})
+        kw_list = kw_target.get("keywords", [alert.keyword])
+        lines.append(f"**Matched Keywords:** {', '.join(f'`{k}`' for k in kw_list)}")
+        if alert.keyword_match_domains:
+            kw_block = "\n".join(alert.keyword_match_domains[:20])
+            lines.append(f"**Matching Domains:**\n```\n{kw_block}\n```")
+    elif alert.api_ids:
         duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping)
         if targets_str is not None:
             lines.append(f"**Duo IDs:** {duo_str}")

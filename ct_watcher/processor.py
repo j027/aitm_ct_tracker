@@ -3,7 +3,7 @@
 import json
 import time
 import traceback
-from typing import List
+from typing import Dict, List
 
 from .config import (
     DOMAIN_REGEX,
@@ -28,7 +28,12 @@ from .apprise import send_apprise_alert
 from .email_sender import send_automated_target_email
 from .logger import log_alert_to_csv
 from .models import AlertInfo
-from .utils import extract_target_id, is_common_word_id, ids_for_target
+from .utils import (
+    extract_target_id,
+    is_common_word_id,
+    ids_for_target,
+    match_keyword_targets,
+)
 
 
 # The IPng Networks 'Gouda2026h2' CT log serves empty cert data for
@@ -107,56 +112,79 @@ def _finalize_alert(
     certkit_url: str | None,
     sha256: str | None,
     serial_number: str | None,
+    keyword: str | None = None,
+    keyword_match_domains: List[str] | None = None,
 ) -> None:
     """Resolve targets, send per-target emails, build and dispatch alert.
 
-    Called by both ``_handle_known_attacker`` and ``_handle_pattern_match``
-    after their handler-specific detection logic is complete.
+    Called by ``_handle_known_attacker``, ``_handle_pattern_match``, and
+    ``_handle_keyword_match`` after their handler-specific detection logic
+    is complete.
     """
-    # Resolve primary target: try api_id first, then scan all api_ids
-    target_info = state.target_mapping.get(api_id) if api_id else None
-    if not target_info and api_ids:
-        for aid in api_ids:
-            if aid in state.target_mapping:
-                api_id = aid
-                target_info = state.target_mapping[aid]
-                break
+    # Resolve primary target: keyword targets use keyword_targets, Duo
+    # targets use target_mapping.
+    target_info = None
+    if keyword:
+        if keyword in state.keyword_targets:
+            target_info = state.keyword_targets[keyword]
+            if not api_id:
+                api_id = keyword
+    else:
+        target_info = state.target_mapping.get(api_id) if api_id else None
+        if not target_info and api_ids:
+            for aid in api_ids:
+                if aid in state.target_mapping:
+                    api_id = aid
+                    target_info = state.target_mapping[aid]
+                    break
 
     # Send emails — one per distinct target
     email_results = []
-    primary_ids = ids_for_target(
-        api_ids,
-        target_info.get("email") if target_info else None,
-        state.target_mapping,
-    )
-    status = send_automated_target_email(
-        target_info=target_info,
-        domain=domain,
-        all_domains=all_domains,
-        non_cdn_ips=non_cdn_ips,
-        target_api_ids=primary_ids,
-    )
-    email_results.append((target_info["name"] if target_info else "unknown", status))
-
-    if len(api_ids) > 1:
-        sent_emails = (
-            {target_info["email"]} if (target_info and target_info.get("email")) else set()
+    if keyword and target_info:
+        primary_ids = [keyword]
+        status = send_automated_target_email(
+            target_info=target_info,
+            domain=domain,
+            all_domains=all_domains,
+            non_cdn_ips=non_cdn_ips,
+            target_api_ids=[],
+            keyword=keyword,
         )
-        for aid in api_ids:
-            if aid == api_id:
-                continue
-            ti = state.target_mapping.get(aid)
-            if ti and ti.get("email") and ti["email"] not in sent_emails:
-                sent_emails.add(ti["email"])
-                ti_ids = ids_for_target(api_ids, ti["email"], state.target_mapping)
-                status = send_automated_target_email(
-                    target_info=ti,
-                    domain=domain,
-                    all_domains=all_domains,
-                    non_cdn_ips=non_cdn_ips,
-                    target_api_ids=ti_ids,
-                )
-                email_results.append((ti["name"], status))
+        email_results.append((target_info["name"], status))
+    else:
+        primary_ids = ids_for_target(
+            api_ids,
+            target_info.get("email") if target_info else None,
+            state.target_mapping,
+        )
+        status = send_automated_target_email(
+            target_info=target_info,
+            domain=domain,
+            all_domains=all_domains,
+            non_cdn_ips=non_cdn_ips,
+            target_api_ids=primary_ids,
+        )
+        email_results.append((target_info["name"] if target_info else "unknown", status))
+
+        if len(api_ids) > 1:
+            sent_emails = (
+                {target_info["email"]} if (target_info and target_info.get("email")) else set()
+            )
+            for aid in api_ids:
+                if aid == api_id:
+                    continue
+                ti = state.target_mapping.get(aid)
+                if ti and ti.get("email") and ti["email"] not in sent_emails:
+                    sent_emails.add(ti["email"])
+                    ti_ids = ids_for_target(api_ids, ti["email"], state.target_mapping)
+                    status = send_automated_target_email(
+                        target_info=ti,
+                        domain=domain,
+                        all_domains=all_domains,
+                        non_cdn_ips=non_cdn_ips,
+                        target_api_ids=ti_ids,
+                    )
+                    email_results.append((ti["name"], status))
 
     # Build combined email status
     lines = []
@@ -197,6 +225,8 @@ def _finalize_alert(
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
+        keyword=keyword,
+        keyword_match_domains=keyword_match_domains if keyword else None,
     )
     _dispatch_alert(alert)
     state.total_alerts_count += 1
@@ -211,6 +241,8 @@ def _handle_known_attacker(
     sha256: str | None = None,
     serial_number: str | None = None,
     api_ids: List[str] | None = None,
+    keyword: str | None = None,
+    keyword_match_domains: List[str] | None = None,
 ) -> bool:
     """Handle known attacker domain detection. Returns True if alert was sent."""
     with state.lock:
@@ -252,6 +284,7 @@ def _handle_known_attacker(
                     break
 
     api_id = api_ids[0] if api_ids else None
+
     _finalize_alert(
         domain=domain,
         all_domains=all_domains,
@@ -269,6 +302,8 @@ def _handle_known_attacker(
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
+        keyword=keyword,
+        keyword_match_domains=keyword_match_domains,
     )
     return True
 
@@ -381,6 +416,87 @@ def _handle_pattern_match(
     return True
 
 
+def _handle_keyword_match(
+    domain: str,
+    all_domains: List[str],
+    cert_id: int,
+    not_before: float | None,
+    keyword: str,
+    keyword_match_domains: List[str],
+    certkit_url: str | None = None,
+    sha256: str | None = None,
+    serial_number: str | None = None,
+) -> bool:
+    """Handle keyword-only match (no known attacker, no Duo pattern).
+
+    Only alerts when a confirmed attacker IP match is found, to keep
+    false positives under control for targets that don't use Duo.
+    """
+    with state.lock:
+        if domain in state.alerted_domains:
+            return False
+        if len(state.alerted_domains) > ALERTED_DOMAINS_LIMIT:
+            state.clear_alerted_domains()
+        state.alerted_domains.add(domain)
+
+    target_info = state.keyword_targets.get(keyword)
+    if not target_info:
+        print(f"[~] Skipping keyword '{keyword}' (not in keyword_targets)")
+        return False
+
+    print(f"[+] Potential keyword match: {domain} ({keyword} -> {target_info['name']})")
+
+    is_cloudflare, nameservers_list = get_nameservers(domain)
+    registrar, reg_date = get_domain_info(domain)
+    all_ips, non_cdn_ips = resolve_and_classify(domain)
+    confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
+
+    has_confirmed_attacker_ip = bool(confirmed_attacker_ip_matches)
+
+    if not has_confirmed_attacker_ip:
+        cf_tag = "CF" if is_cloudflare else "Non-CF"
+        print(
+            f"[~] Skipping {domain} ({keyword} -> {target_info['name']})"
+            f" — low confidence ({cf_tag}, no attacker IP match,"
+            f" {len(all_domains)} domain(s) in cert)"
+        )
+        return False
+
+    track_resolved_ips(all_ips, non_cdn_ips, domain)
+    print(
+        f"[!] ALERT [KEYWORD]: {domain} ({keyword} -> {target_info['name']})"
+        f" — escalated via attacker IP match:"
+        f" {', '.join(confirmed_attacker_ip_matches)}"
+    )
+
+    with state.lock:
+        if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
+            state.clear_alerted_certificates()
+        state.alerted_certificates.add(cert_id)
+
+    _finalize_alert(
+        domain=domain,
+        all_domains=all_domains,
+        not_before=not_before,
+        is_known_attacker=False,
+        registrar=registrar,
+        is_cloudflare=is_cloudflare,
+        nameservers_list=nameservers_list,
+        all_ips=all_ips,
+        non_cdn_ips=non_cdn_ips,
+        confirmed_attacker_ip_matches=confirmed_attacker_ip_matches,
+        reg_date=reg_date,
+        api_ids=[],
+        api_id=None,
+        certkit_url=certkit_url,
+        sha256=sha256,
+        serial_number=serial_number,
+        keyword=keyword,
+        keyword_match_domains=keyword_match_domains,
+    )
+    return True
+
+
 def process_message(message_str: str) -> None:
     """Process incoming CT log message from certstream server."""
     try:
@@ -427,9 +543,10 @@ def process_message(message_str: str) -> None:
         state.cert_count += 1
         _print_stats()
 
-        # First pass: collect all Duo api-IDs and known attacker domains
+        # First pass: collect Duo api-IDs, known attacker domains, and keyword matches
         known_attacker_domains = []
         matched_patterns = {}
+        keyword_matches: Dict[str, list] = {}
 
         for d in all_domains:
             try:
@@ -456,11 +573,29 @@ def process_message(message_str: str) -> None:
                 print(f"[!] Error processing domain {d}: {e}")
                 continue
 
+        # Run keyword scan against all domains (including known attacker
+        # ones — so we can enrich the known-attacker alert with the correct
+        # target info even when no Duo ID is present).
+        if state.keyword_targets:
+            keyword_matches = match_keyword_targets(all_domains, state.keyword_targets)
+
         all_api_ids = sorted(matched_patterns.keys())
 
         if known_attacker_domains:
+            # If any known-attacker domain also matched a keyword, enrich
+            # the alert so target_info is populated correctly.
+            first_domain = known_attacker_domains[0]
+            ka_keyword = None
+            ka_kw_domains = None
+            for kw_id, kw_domains in keyword_matches.items():
+                safe = [d.strip().lower() for d in known_attacker_domains]
+                matching = [d for d in kw_domains if d in safe]
+                if matching:
+                    ka_keyword = kw_id
+                    ka_kw_domains = matching
+                    break
             _handle_known_attacker(
-                known_attacker_domains[0],
+                first_domain,
                 all_domains,
                 cert_id,
                 not_before,
@@ -468,6 +603,8 @@ def process_message(message_str: str) -> None:
                 sha256,
                 serial_number,
                 api_ids=all_api_ids,
+                keyword=ka_keyword,
+                keyword_match_domains=ka_kw_domains,
             )
         elif matched_patterns:
             _handle_pattern_match(
@@ -480,6 +617,27 @@ def process_message(message_str: str) -> None:
                 serial_number,
                 api_ids=all_api_ids,
             )
+        elif keyword_matches:
+            # Keyword-only matches — each unique keyword fires its own
+            # handler (high-confidence only if backed by attacker IP).
+            seen_kw = set()
+            for kw_id, kw_domains in keyword_matches.items():
+                if kw_id in seen_kw:
+                    continue
+                if kw_id not in state.keyword_targets:
+                    continue
+                seen_kw.add(kw_id)
+                _handle_keyword_match(
+                    kw_domains[0],
+                    all_domains,
+                    cert_id,
+                    not_before,
+                    kw_id,
+                    kw_domains,
+                    certkit_url,
+                    sha256,
+                    serial_number,
+                )
 
     except Exception as e:
         print(f"[!] Error in process_message: {e}")

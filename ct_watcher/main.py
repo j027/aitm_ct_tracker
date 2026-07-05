@@ -23,7 +23,7 @@ def main() -> None:
     # Load all configuration files
     state.known_attacker_domains = load_known_attacker_domains()
     state.known_attacker_ips = load_known_attacker_ips()
-    state.target_mapping = load_target_mapping()
+    state.target_mapping, state.keyword_targets = load_target_mapping()
     state.email_template = load_email_template()
     state.attacker_ips_data = load_attacker_ips()
     state.watched_org_ids = load_watched_org_ids()

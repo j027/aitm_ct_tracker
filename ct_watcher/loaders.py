@@ -19,11 +19,7 @@ DEFAULT_EMAIL_TEMPLATE = """To the Security Team,
 I detected new SSL certificate registrations matching known AitM
 phishing patterns that appear to be targeting your organization.
 
-Duo API hostname: {DUO_IDENTIFIER}
-
-Note: I attributed this Duo API hostname to your organization via OSINT
-research and it may not be 100% reliable. If you believe this reached the
-wrong organization, please let me know. It helps me improve accuracy.
+{IDENTIFIER}
 
 IOCs:
 {IOCS_LIST}
@@ -59,24 +55,51 @@ def load_known_attacker_domains(filepath: str = KNOWN_DOMAINS_FILE) -> Set[str]:
     return domains
 
 
-def load_target_mapping(filepath: str = TARGETS_FILE) -> Dict[str, Dict[str, str]]:
+def load_target_mapping(
+    filepath: str = TARGETS_FILE,
+) -> tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, Any]]]:
     """Load target organization mapping from JSON file.
 
-    Expected format: {"hex_id": {"name": "Org Name", "email": "email@example.com"}}
+    Returns (duo_targets, keyword_targets).  Entries without ``"type":
+    "keyword"`` are treated as Duo targets (backwards compatible).  Entries
+    with ``"type": "keyword"`` are keyword-based targets suitable for
+    organizations that may not use Duo, or may only use it for some users.
+
+    Duo format::
+
+        {"hex_id": {"name": "Org Name", "email": "email@example.com"}}
+
+    Keyword format::
+
+        {"keyword_id": {"type": "keyword", "name": "Org Name",
+         "email": "email@example.com", "keywords": ["word1", "word2"]}}
     """
-    mapping = {}
+    duo_targets: Dict[str, Dict[str, str]] = {}
+    keyword_targets: Dict[str, Dict[str, Any]] = {}
+
     if not os.path.exists(filepath):
         print(f"[*] No targets file found at {filepath}")
-        return mapping
+        return duo_targets, keyword_targets
 
     try:
         with open(filepath, "r") as f:
-            mapping = json.load(f)
-        print(f"[*] Loaded {len(mapping)} target organizations")
+            mapping: Dict[str, Dict[str, Any]] = json.load(f)
+
+        duo_count = 0
+        kw_count = 0
+        for key, value in mapping.items():
+            if value.get("type") == "keyword":
+                keyword_targets[key] = value
+                kw_count += 1
+            else:
+                duo_targets[key] = {k: v for k, v in value.items() if k != "type"}
+                duo_count += 1
+
+        print(f"[*] Loaded {duo_count} Duo + {kw_count} keyword targets ({len(mapping)} total)")
     except Exception as e:
         print(f"[!] Error loading targets: {e}")
 
-    return mapping
+    return duo_targets, keyword_targets
 
 
 def load_email_template(filepath: str = EMAIL_TEMPLATE_FILE) -> str:

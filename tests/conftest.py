@@ -14,9 +14,16 @@ from ct_watcher.loaders import (
 
 @pytest.fixture(scope="session")
 def target_mapping():
-    """Load target mapping from targets.json. Returns empty dict if file missing."""
-    mapping = load_target_mapping()
-    return mapping
+    """Load Duo target mapping from targets.json. Returns empty dict if file missing."""
+    duo_targets, _ = load_target_mapping()
+    return duo_targets
+
+
+@pytest.fixture(scope="session")
+def keyword_targets():
+    """Load keyword targets from targets.json. Returns empty dict if file missing."""
+    _, kw_targets = load_target_mapping()
+    return kw_targets
 
 
 @pytest.fixture(scope="session")

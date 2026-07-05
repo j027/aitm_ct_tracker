@@ -2,6 +2,7 @@
 
 import time
 from datetime import datetime, timezone
+import re
 import requests
 from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import quote, urlencode
@@ -55,6 +56,10 @@ def generate_mailto_link(
     list was trimmed to keep the URL within MAILTO_URL_MAX chars so that the
     Discord field value ``[Email threat intel](url)`` never exceeds the 1024-char
     field limit and produces a working (non-truncated) link.
+
+    The ``{IDENTIFIER}`` block is stripped from the template to save
+    space — mailto links are for manual sends where the operator can
+    add attribution themselves.
     """
     # Determine recipient email and org name
     if target_info:
@@ -67,11 +72,10 @@ def generate_mailto_link(
     # Build subject (fixed, not trimmed)
     subject = EMAIL_SUBJECT.replace("{TARGET_NAME}", org_name)
 
-    # Split template around the IOC placeholder so we can measure overhead
-    template = state.email_template
-    duo_urls = [f"https://api-{aid}.duosecurity.com" for aid in api_ids] if api_ids else []
-    duo_str = "\n".join(duo_urls)
-    template = template.replace("{DUO_IDENTIFIER}", duo_str)
+    # Strip {IDENTIFIER} line and surrounding whitespace to make room for
+    # more IOC domains before hitting the 1000-char mailto limit.
+    template = re.sub(r"\n*\{IDENTIFIER\}\s*", "", state.email_template)
+
     iocs_placeholder = "{IOCS_LIST}"
     if iocs_placeholder in template:
         template_before, template_after = template.split(iocs_placeholder, 1)
@@ -333,7 +337,32 @@ def build_embed(
         )
         embed["color"] = 0xFF0000
 
-    if alert.api_ids:
+    if alert.keyword:
+        kw_target = state.keyword_targets.get(alert.keyword, {})
+        kw_list = kw_target.get("keywords", [alert.keyword])
+        embed["fields"].append(
+            {
+                "name": "🔑 Keyword",
+                "value": f"`{alert.keyword}`",
+                "inline": False,
+            }
+        )
+        embed["fields"].append(
+            {
+                "name": "📋 Matched Keywords",
+                "value": ", ".join(f"`{k}`" for k in kw_list),
+                "inline": False,
+            }
+        )
+        if alert.keyword_match_domains:
+            embed["fields"].append(
+                {
+                    "name": "🌐 Matching Domains",
+                    "value": "\n".join(alert.keyword_match_domains[:20]),
+                    "inline": False,
+                }
+            )
+    elif alert.api_ids:
         duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping)
         if targets_str is not None:
             embed["fields"].append(
@@ -448,7 +477,11 @@ def build_embed(
                 mailto_link
                 if mailto_link is not None
                 else generate_mailto_link(
-                    target_info, alert.domain, alert.all_domains, alert.non_cdn_ips, primary_ids
+                    target_info,
+                    alert.domain,
+                    alert.all_domains,
+                    alert.non_cdn_ips,
+                    primary_ids,
                 )[0]
             )
             embed["fields"].append(
@@ -505,7 +538,11 @@ def _build_minimal_embed(alert: AlertInfo) -> Dict[str, Any]:
 
     if EMAIL_ENABLED:
         minimal_mailto, _ = generate_mailto_link(
-            None, alert.domain, alert.all_domains, None, alert.api_ids or None
+            None,
+            alert.domain,
+            alert.all_domains,
+            None,
+            alert.api_ids or None,
         )
         fields.append(
             {

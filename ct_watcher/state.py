@@ -19,6 +19,7 @@ class WatcherState:
     known_attacker_domains: Set[str] = field(default_factory=set)
     known_attacker_ips: Set[str] = field(default_factory=set)
     target_mapping: Dict[str, Dict[str, str]] = field(default_factory=dict)
+    keyword_targets: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     email_template: str = ""
     attacker_ips_data: Dict[str, Any] = field(
         default_factory=lambda: {"ips": {}, "last_updated": None}

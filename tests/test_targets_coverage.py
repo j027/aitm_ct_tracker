@@ -5,7 +5,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from ct_watcher.config import DOMAIN_REGEX
-from ct_watcher.utils import extract_target_id
+from ct_watcher.utils import extract_target_id, match_keyword_targets
 
 
 class TestTargetsCoverage:
@@ -16,8 +16,8 @@ class TestTargetsCoverage:
     8-char hex IDs, not 8-char alphanumeric IDs.
     """
 
-    def test_all_targets_match_regex(self, target_mapping):
-        """Every target ID in targets.json must match DOMAIN_REGEX."""
+    def test_all_duo_targets_match_regex(self, target_mapping):
+        """Every Duo target ID in targets.json must match DOMAIN_REGEX."""
         if not target_mapping:
             pytest.skip("targets.json not available")
 
@@ -28,8 +28,8 @@ class TestTargetsCoverage:
                 f"does not match DOMAIN_REGEX"
             )
 
-    def test_all_targets_extractable(self, target_mapping):
-        """Every target ID must be extractable via extract_target_id."""
+    def test_all_duo_targets_extractable(self, target_mapping):
+        """Every Duo target ID must be extractable via extract_target_id."""
         if not target_mapping:
             pytest.skip("targets.json not available")
 
@@ -38,4 +38,21 @@ class TestTargetsCoverage:
             extracted = extract_target_id(test_domain)
             assert extracted == target_id, (
                 f"Failed to extract '{target_id}' from '{test_domain}' (got '{extracted}')"
+            )
+
+    def test_keyword_targets_fallback_keyword(self, keyword_targets):
+        """Keywords field defaults to [key] when absent, so the id must
+        match itself."""
+        for kw_id, target in keyword_targets.items():
+            keywords = target.get("keywords", [kw_id])
+            assert kw_id in keywords, f"Keyword target '{kw_id}' does not list itself in 'keywords'"
+
+    def test_keyword_targets_match_example_domain(self, keyword_targets):
+        """Each keyword target must match its own test domain."""
+        for kw_id, target in keyword_targets.items():
+            keywords = target.get("keywords", [kw_id])
+            test_kw = keywords[0]
+            result = match_keyword_targets([f"{test_kw}.example.com"], {kw_id: target})
+            assert kw_id in result, (
+                f"Keyword '{kw_id}' (kw='{test_kw}') did not match '{test_kw}.example.com'"
             )

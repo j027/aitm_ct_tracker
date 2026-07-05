@@ -80,6 +80,8 @@ def _dispatch_alert(alert: AlertInfo) -> None:
 
     # Determine watched org channels
     primary_id = alert.api_ids[0] if alert.api_ids else None
+    if primary_id is None and alert.keyword:
+        primary_id = alert.keyword
     is_watched = primary_id is not None and primary_id in state.watched_org_ids
     watched_discord = DISCORD_WEBHOOK_WATCHED if is_watched else None
     watched_apprise = None

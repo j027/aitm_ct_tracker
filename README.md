@@ -8,6 +8,7 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
 | `.env.example` | Template for required environment variables. Copy to `.env` before running. |
 | `email_template.example.txt` | Example email template. Copy to `email_template.txt` to customize. |
 | `known_domains.txt` | Known attacker domains, so new certs on these are flagged high-confidence. |
+| `expired_domains.txt` | Expired/unregistered attacker domains. Watcher silently skips these. Managed by `expiry_checker.py`. |
 | `known_ips.txt` | Known attacker IPs, so low-confidence matches resolving here are upgraded. |
 | `watched_org_ids.txt` | Optional. Org IDs (one per line) whose alerts are also sent to `DISCORD_WEBHOOK_WATCHED`. |
 
@@ -79,6 +80,24 @@ mailto links embedded in Discord alerts.
 3. (Optional) Set `AUTOMATED_EMAIL_DISCLAIMER` in your `.env` to append a
    footer to every automated SMTP email. A default disclaimer is used if
    not set.
+
+## Expired Domain Checker
+
+Attackers register domains and let them expire after their campaigns. When
+expired domains get re-registered by unrelated parties, the watcher may
+fire false-positive alerts. Use `expiry_checker.py` to periodically audit
+your known domains and move expired ones to `expired_domains.txt` (which
+the watcher silently skips).
+
+```bash
+python expiry_checker.py              # check all domains, auto-move expired ones
+python expiry_checker.py --dry-run    # preview results without modifying files
+```
+
+After running, restart the watcher for the changes to take effect.
+
+If a domain was moved by mistake, move it back from `expired_domains.txt`
+to `known_domains.txt` and restart.
 
 ## Testing
 

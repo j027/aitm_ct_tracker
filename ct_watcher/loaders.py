@@ -7,6 +7,7 @@ from typing import Dict, Set, Any
 
 from .config import (
     KNOWN_DOMAINS_FILE,
+    EXPIRED_DOMAINS_FILE,
     TARGETS_FILE,
     EMAIL_TEMPLATE_FILE,
     ATTACKER_IPS_FILE,
@@ -51,6 +52,32 @@ def load_known_attacker_domains(filepath: str = KNOWN_DOMAINS_FILE) -> Set[str]:
         print(f"[*] Loaded {len(domains)} known attacker domains")
     except Exception as e:
         print(f"[!] Error loading known domains: {e}")
+
+    return domains
+
+
+def load_expired_domains(filepath: str = EXPIRED_DOMAINS_FILE) -> Set[str]:
+    """Load expired domains from file and un-defang them.
+
+    Expected format: one domain per line, defanged like littlenuggetsco[.]com
+    Returns empty set if file doesn't exist (no expired domains known yet).
+    """
+    domains = set()
+    if not os.path.exists(filepath):
+        print(f"[*] No expired domains file found at {filepath} — starting fresh")
+        return domains
+
+    try:
+        with open(filepath, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                domain = line.replace("[.]", ".").replace("[dot]", ".").lower()
+                domains.add(domain)
+        print(f"[*] Loaded {len(domains)} expired domains")
+    except Exception as e:
+        print(f"[!] Error loading expired domains: {e}")
 
     return domains
 

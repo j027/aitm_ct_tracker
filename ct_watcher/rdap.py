@@ -18,7 +18,7 @@ from typing import Dict, Optional, Tuple
 import requests
 
 from .utils import get_base_domain
-from .whois import whois_lookup
+from .whois import whois_lookup, whois_check_full
 
 # --- constants ---
 _OVERRIDES_FILE = os.path.join(os.path.dirname(__file__), "rdap_overrides.json")
@@ -149,6 +149,15 @@ def _parse_reg_date(data: dict) -> Optional[str]:
     return None
 
 
+def _parse_exp_date(data: dict) -> Optional[str]:
+    """Extract expiration date (ISO 8601) from RDAP events."""
+    for event in data.get("events", []):
+        if event.get("eventAction") == "expiration":
+            date_str = event.get("eventDate", "")
+            return date_str if date_str else None
+    return None
+
+
 def _query_rdap_server(base_domain: str, server: str) -> Optional[dict]:
     """Make the RDAP HTTP request. Returns parsed JSON dict or None on failure.
 
@@ -215,3 +224,61 @@ def get_domain_info(domain: str) -> Tuple[Optional[str], Optional[str]]:
     result = _lookup_domain(base_domain)
     _domain_cache[base_domain] = (result[0], result[1], time.time())
     return result
+
+
+def _query_rdap_with_status(base_domain: str, server: str) -> Tuple[Optional[int], Optional[dict]]:
+    """Make an RDAP HTTP request and return (status_code, data_or_None).
+
+    Returns (None, None) on timeout or network error.
+    """
+    try:
+        resp = requests.get(
+            f"{server.rstrip('/')}/domain/{base_domain}",
+            headers=_HEADERS,
+            timeout=_REQUEST_TIMEOUT,
+        )
+    except requests.Timeout:
+        print(f"[~] RDAP lookup timed out for {base_domain}")
+        return (None, None)
+    except Exception as e:
+        print(f"[~] RDAP lookup failed for {base_domain} ({e})")
+        return (None, None)
+
+    if resp.status_code == 200:
+        return (200, resp.json())
+
+    return (resp.status_code, None)
+
+
+def get_domain_status(domain: str) -> Tuple[str, Optional[str]]:
+    """Check domain registration status and expiration date via RDAP/WHOIS.
+
+    Returns (status, exp_date) where status is one of:
+      - "registered" — domain is registered, exp_date is the ISO 8601 expiration
+      - "available"  — domain is not currently registered
+      - "unknown"    — lookup failed, exp_date is None
+
+    Uses RDAP when available for the TLD, falls back to WHOIS.
+    Results are NOT cached (intended for batch checking).
+    """
+    base_domain = get_base_domain(domain)
+    tld = base_domain.rsplit(".", 1)[-1]
+    server = _get_rdap_server(tld)
+
+    if server:
+        status_code, data = _query_rdap_with_status(base_domain, server)
+        if status_code == 200 and data is not None:
+            exp_date = _parse_exp_date(data)
+            return ("registered", exp_date)
+        if status_code == 404:
+            return ("available", None)
+        if status_code is not None:
+            return ("unknown", None)
+        return ("unknown", None)
+
+    registrar, reg_date, exp_date, is_available = whois_check_full(base_domain)
+    if is_available:
+        return ("available", None)
+    if exp_date is not None:
+        return ("registered", exp_date)
+    return ("unknown", None)

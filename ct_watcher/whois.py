@@ -38,6 +38,38 @@ _CREATION_RES = [
     re.compile(r"登録年月日\]\s*(\d{4}/\d{2}/\d{2})"),
 ]
 
+# regex patterns for extracting expiration date
+_EXPIRY_RES = [
+    re.compile(r"^[ \t]*registry expiry date:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(
+        r"^[ \t]*registrar registration expiration date:[ \t]*(.+)$",
+        re.IGNORECASE | re.MULTILINE,
+    ),
+    re.compile(r"^[ \t]*expir\w* date:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^[ \t]*expires on:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^[ \t]*expiration:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^[ \t]*paid-till:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^[ \t]*renewal date:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^[ \t]*record expires on[ \t:]+(.+)$", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^[ \t]*domain expiration date:[ \t]*(.+)$", re.IGNORECASE | re.MULTILINE),
+]
+
+# regex patterns that indicate a domain is NOT registered
+_NOT_FOUND_RES = [
+    re.compile(r"no match for", re.IGNORECASE),
+    re.compile(r"not found", re.IGNORECASE),
+    re.compile(r"domain not found", re.IGNORECASE),
+    re.compile(r"no entries found", re.IGNORECASE),
+    re.compile(r"no data found", re.IGNORECASE),
+    re.compile(r"no matching record", re.IGNORECASE),
+    re.compile(r"status:\s*free", re.IGNORECASE),
+    re.compile(r"no object found", re.IGNORECASE),
+    re.compile(r"no records found", re.IGNORECASE),
+    re.compile(r"% error:.*not found", re.IGNORECASE),
+    re.compile(r"% no records found", re.IGNORECASE),
+    re.compile(r"domain[ \t]+not[ \t]+registered", re.IGNORECASE),
+]
+
 # regex to strip trailing URL suffixes from registrar names:
 # "MarkMonitor Inc. ( https://nic.at/registrar/434 )" → "MarkMonitor Inc."
 _REGISTRAR_URL_RE = re.compile(r"\s*\(\s*https?://[^)]+\)\s*$")
@@ -186,3 +218,47 @@ def whois_lookup(base_domain: str) -> Tuple[Optional[str], Optional[str]]:
         return (None, None)
 
     return _parse_whois(raw)
+
+
+def whois_check_full(
+    base_domain: str,
+) -> Tuple[Optional[str], Optional[str], Optional[str], bool]:
+    """Full WHOIS lookup with expiration date and availability check.
+
+    Returns (registrar, reg_date, exp_date, is_available) where:
+      - reg_date is 'YYYY-MM-DD' or None
+      - exp_date is 'YYYY-MM-DD' or None
+      - is_available is True when the WHOIS server indicates the domain
+        is not registered (i.e. available for registration).
+
+    Returns (None, None, None, False) on any failure.
+    """
+    tld = base_domain.rsplit(".", 1)[-1]
+    server = _get_whois_server(tld)
+    if not server:
+        print(f'[~] WHOIS check failed for {base_domain} (no WHOIS server known for TLD "{tld}")')
+        return (None, None, None, False)
+
+    try:
+        query = _QUERY_PREFIXES.get(tld, "") + base_domain
+        raw = _whois_query_raw(server, query)
+    except Exception as e:
+        print(f"[~] WHOIS check failed for {base_domain} ({e})")
+        return (None, None, None, False)
+
+    registrar, reg_date = _parse_whois(raw)
+
+    exp_date = None
+    for pattern in _EXPIRY_RES:
+        match = pattern.search(raw)
+        if match:
+            exp_date = _normalize_date(match.group(1).strip())
+            break
+
+    is_available = False
+    for pattern in _NOT_FOUND_RES:
+        if pattern.search(raw):
+            is_available = True
+            break
+
+    return (registrar, reg_date, exp_date, is_available)

@@ -380,6 +380,7 @@ ALERTED_CERTIFICATES_LIMIT = 10000
 ATTACKER_IPS_FILE = "attacker_ips.json"
 KNOWN_IPS_FILE = "known_ips.txt"
 KNOWN_DOMAINS_FILE = "known_domains.txt"
+EXPIRED_DOMAINS_FILE = "expired_domains.txt"
 TARGETS_FILE = "targets.json"
 EMAIL_TEMPLATE_FILE = "email_template.txt"
 WATCHED_ORG_IDS_FILE = "watched_org_ids.txt"

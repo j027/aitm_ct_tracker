@@ -562,6 +562,8 @@ def process_message(message_str: str) -> None:
                     state.seen_domains.add(domain)
 
                 if is_known_attacker_domain(domain, state.known_attacker_domains):
+                    if is_known_attacker_domain(domain, state.expired_domains):
+                        continue
                     known_attacker_domains.append(domain)
                     continue
 

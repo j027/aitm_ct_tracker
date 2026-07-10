@@ -5,7 +5,6 @@ from .config import DISCORD_WEBHOOK, CDN_NETWORKS
 from .state import state
 from .loaders import (
     load_known_attacker_domains,
-    load_expired_domains,
     load_known_attacker_ips,
     load_target_mapping,
     load_email_template,
@@ -23,7 +22,6 @@ def main() -> None:
 
     # Load all configuration files
     state.known_attacker_domains = load_known_attacker_domains()
-    state.expired_domains = load_expired_domains()
     state.known_attacker_ips = load_known_attacker_ips()
     state.target_mapping, state.keyword_targets = load_target_mapping()
     state.email_template = load_email_template()

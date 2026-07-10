@@ -17,7 +17,6 @@ class WatcherState:
 
     # Known data (loaded from files)
     known_attacker_domains: Set[str] = field(default_factory=set)
-    expired_domains: Set[str] = field(default_factory=set)
     known_attacker_ips: Set[str] = field(default_factory=set)
     target_mapping: Dict[str, Dict[str, str]] = field(default_factory=dict)
     keyword_targets: Dict[str, Dict[str, Any]] = field(default_factory=dict)

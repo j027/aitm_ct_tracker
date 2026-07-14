@@ -14,11 +14,13 @@ from .config import (
 )
 from .state import state
 from .processor import process_message
+from .file_watcher import start_file_watcher
 
 
 async def run_websocket_client() -> None:
     """Run the WebSocket client with auto-reconnect."""
     print("[*] Starting CertStream watcher...")
+    file_watcher_task = asyncio.create_task(start_file_watcher())
     try:
         while True:
             try:
@@ -46,3 +48,9 @@ async def run_websocket_client() -> None:
             state.reconnect_delay = min(state.reconnect_delay * 2, MAX_RECONNECT_DELAY)
     except (KeyboardInterrupt, asyncio.CancelledError):
         print("\n[*] Shutting down gracefully...")
+    finally:
+        file_watcher_task.cancel()
+        try:
+            await file_watcher_task
+        except asyncio.CancelledError:
+            pass

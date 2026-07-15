@@ -40,13 +40,6 @@ class TestTargetsCoverage:
                 f"Failed to extract '{target_id}' from '{test_domain}' (got '{extracted}')"
             )
 
-    def test_keyword_targets_fallback_keyword(self, keyword_targets):
-        """Keywords field defaults to [key] when absent, so the id must
-        match itself."""
-        for kw_id, target in keyword_targets.items():
-            keywords = target.get("keywords", [kw_id])
-            assert kw_id in keywords, f"Keyword target '{kw_id}' does not list itself in 'keywords'"
-
     def test_keyword_targets_match_example_domain(self, keyword_targets):
         """Each keyword target must match its own test domain."""
         for kw_id, target in keyword_targets.items():

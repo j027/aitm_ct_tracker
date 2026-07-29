@@ -116,8 +116,8 @@ def match_keyword_targets(
 
 
 _DUO_ATTRIBUTION_NOTE = (
-    "Note: I attributed this Duo API hostname to your organization via OSINT"
-    " research and it may not be 100% reliable. If you believe this reached"
+    "Note: I associated this Duo API hostname with your organization via"
+    " OSINT and it may not be 100% reliable. If you believe this reached"
     " the wrong organization, please let me know. It helps me improve"
     " accuracy."
 )

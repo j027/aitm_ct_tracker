@@ -4,7 +4,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ct_watcher.utils import calculate_freshness, get_base_domain
+from ct_watcher.utils import build_identifier_text, calculate_freshness, get_base_domain
 
 
 class TestCalculateFreshness:
@@ -62,3 +62,34 @@ class TestBaseDomain:
     def test_shared_hosting_platform(self):
         assert get_base_domain("myapp.azurewebsites.net") == "azurewebsites.net"
         assert get_base_domain("www.myapp.azurewebsites.net") == "azurewebsites.net"
+
+
+class TestBuildIdentifierText:
+    def test_single_duo_id(self):
+        result = build_identifier_text(api_ids=["deadbeef"])
+        assert "https://api-deadbeef.duosecurity.com" in result
+        assert "Duo API hostname:" in result
+        assert result.count("https://api-") == 1
+
+    def test_multiple_duo_ids(self):
+        result = build_identifier_text(api_ids=["deadbeef", "cafebabe"])
+        assert "https://api-deadbeef.duosecurity.com" in result
+        assert "https://api-cafebabe.duosecurity.com" in result
+        assert result.count("https://api-") == 2
+
+    def test_keyword_match(self):
+        result = build_identifier_text(keyword="testkeyword")
+        assert "Keyword match: testkeyword" in result
+
+    def test_keyword_overrides_api_ids(self):
+        result = build_identifier_text(api_ids=["deadbeef"], keyword="testkeyword")
+        assert "Keyword match: testkeyword" in result
+        assert "duosecurity.com" not in result
+
+    def test_empty_returns_empty(self):
+        result = build_identifier_text()
+        assert result == ""
+
+    def test_empty_api_ids_returns_empty(self):
+        result = build_identifier_text(api_ids=[])
+        assert result == ""

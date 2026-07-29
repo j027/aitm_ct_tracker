@@ -275,15 +275,12 @@ def _handle_known_attacker(
     if api_ids is None:
         api_ids = []
     if not api_ids:
-        aid = extract_target_id(domain)
-        if aid:
-            api_ids = [aid]
-        if not api_ids:
-            for d in all_domains:
-                candidate_id = extract_target_id(d.strip().lower())
-                if candidate_id:
-                    api_ids = [candidate_id]
-                    break
+        seen = set()
+        for d in all_domains:
+            candidate_id = extract_target_id(d.strip().lower())
+            if candidate_id:
+                seen.add(candidate_id)
+        api_ids = list(seen)
 
     api_id = api_ids[0] if api_ids else None
 

@@ -349,7 +349,7 @@ def build_embed(
         )
         embed["fields"].append(
             {
-                "name": "📋 Matched Keywords",
+                "name": "📋 Keywords",
                 "value": ", ".join(f"`{k}`" for k in kw_list),
                 "inline": False,
             }

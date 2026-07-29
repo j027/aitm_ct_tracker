@@ -94,6 +94,16 @@ def load_target_mapping(
             else:
                 duo_targets[key] = {k: v for k, v in value.items() if k != "type"}
                 duo_count += 1
+                keywords = value.get("keywords", [])
+                if keywords:
+                    kw_key = keywords[0]
+                    if kw_key not in keyword_targets:
+                        keyword_targets[kw_key] = {
+                            "type": "keyword",
+                            "name": value["name"],
+                            "email": value.get("email", ""),
+                            "keywords": keywords,
+                        }
 
         print(f"[*] Loaded {duo_count} Duo + {kw_count} keyword targets ({len(mapping)} total)")
     except Exception as e:

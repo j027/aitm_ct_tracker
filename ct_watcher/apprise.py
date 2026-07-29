@@ -36,7 +36,7 @@ def build_apprise_alert(alert: AlertInfo) -> str:
         lines.append(f"**Keyword:** `{alert.keyword}`")
         kw_target = state.keyword_targets.get(alert.keyword, {})
         kw_list = kw_target.get("keywords", [alert.keyword])
-        lines.append(f"**Matched Keywords:** {', '.join(f'`{k}`' for k in kw_list)}")
+        lines.append(f"**Keywords:** {', '.join(f'`{k}`' for k in kw_list)}")
         if alert.keyword_match_domains:
             kw_block = "\n".join(alert.keyword_match_domains[:20])
             lines.append(f"**Matching Domains:**\n```\n{kw_block}\n```")

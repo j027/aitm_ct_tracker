@@ -338,22 +338,14 @@ def build_embed(
         embed["color"] = 0xFF0000
 
     if alert.keyword:
-        kw_target = state.keyword_targets.get(alert.keyword, {})
-        kw_list = kw_target.get("keywords", [alert.keyword])
-        embed["fields"].append(
-            {
-                "name": "🔑 Keyword",
-                "value": f"`{alert.keyword}`",
-                "inline": False,
-            }
-        )
-        embed["fields"].append(
-            {
-                "name": "📋 Keywords",
-                "value": ", ".join(f"`{k}`" for k in kw_list),
-                "inline": False,
-            }
-        )
+        if alert.matched_keywords:
+            embed["fields"].append(
+                {
+                    "name": "📋 Matched keyword(s)",
+                    "value": ", ".join(f"`{k}`" for k in alert.matched_keywords),
+                    "inline": False,
+                }
+            )
         if alert.keyword_match_domains:
             embed["fields"].append(
                 {

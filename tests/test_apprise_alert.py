@@ -123,6 +123,18 @@ class TestAppriseTargetResolution:
 class TestAppriseAlertFields:
     """Tests for individual field rendering."""
 
+    def test_keyword_fields_show_actual_matches_without_target_key(self):
+        result = build_apprise_alert(
+            _make_alert(
+                keyword="berkeley",
+                matched_keywords=["calcentraltiw"],
+                keyword_match_domains=["calcentraltiw.evil.example.com"],
+            )
+        )
+        assert "**Keyword:**" not in result
+        assert "**Matched keyword(s):** `calcentraltiw`" in result
+        assert "`berkeley`" not in result
+
     def test_matched_domain_defanged(self):
         result = build_apprise_alert(
             _make_alert(

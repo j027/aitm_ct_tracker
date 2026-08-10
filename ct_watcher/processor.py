@@ -30,6 +30,7 @@ from .logger import log_alert_to_csv
 from .models import AlertInfo
 from .utils import (
     extract_target_id,
+    find_matching_keywords,
     is_common_word_id,
     ids_for_target,
     match_keyword_targets,
@@ -116,6 +117,7 @@ def _finalize_alert(
     serial_number: str | None,
     keyword: str | None = None,
     keyword_match_domains: List[str] | None = None,
+    matched_keywords: List[str] | None = None,
 ) -> None:
     """Resolve targets, send per-target emails, build and dispatch alert.
 
@@ -151,6 +153,7 @@ def _finalize_alert(
             non_cdn_ips=non_cdn_ips,
             target_api_ids=[],
             keyword=keyword,
+            matched_keywords=matched_keywords,
         )
         email_results.append((target_info["name"], status))
     else:
@@ -229,6 +232,7 @@ def _finalize_alert(
         serial_number=serial_number,
         keyword=keyword,
         keyword_match_domains=keyword_match_domains if keyword else None,
+        matched_keywords=matched_keywords if keyword else None,
     )
     _dispatch_alert(alert)
     state.total_alerts_count += 1
@@ -245,6 +249,7 @@ def _handle_known_attacker(
     api_ids: List[str] | None = None,
     keyword: str | None = None,
     keyword_match_domains: List[str] | None = None,
+    matched_keywords: List[str] | None = None,
 ) -> bool:
     """Handle known attacker domain detection. Returns True if alert was sent."""
     with state.lock:
@@ -303,6 +308,7 @@ def _handle_known_attacker(
         serial_number=serial_number,
         keyword=keyword,
         keyword_match_domains=keyword_match_domains,
+        matched_keywords=matched_keywords,
     )
     return True
 
@@ -425,6 +431,7 @@ def _handle_keyword_match(
     certkit_url: str | None = None,
     sha256: str | None = None,
     serial_number: str | None = None,
+    matched_keywords: List[str] | None = None,
 ) -> bool:
     """Handle keyword-only match (no known attacker, no Duo pattern).
 
@@ -492,6 +499,7 @@ def _handle_keyword_match(
         serial_number=serial_number,
         keyword=keyword,
         keyword_match_domains=keyword_match_domains,
+        matched_keywords=matched_keywords,
     )
     return True
 
@@ -586,12 +594,18 @@ def process_message(message_str: str) -> None:
             first_domain = known_attacker_domains[0]
             ka_keyword = None
             ka_kw_domains = None
+            ka_matched_keywords = None
             for kw_id, kw_domains in keyword_matches.items():
                 safe = [d.strip().lower() for d in known_attacker_domains]
                 matching = [d for d in kw_domains if d in safe]
                 if matching:
                     ka_keyword = kw_id
                     ka_kw_domains = matching
+                    target = state.keyword_targets[kw_id]
+                    ka_matched_keywords = find_matching_keywords(
+                        matching,
+                        target.get("keywords", [kw_id]),
+                    )
                     break
             _handle_known_attacker(
                 first_domain,
@@ -604,6 +618,7 @@ def process_message(message_str: str) -> None:
                 api_ids=all_api_ids,
                 keyword=ka_keyword,
                 keyword_match_domains=ka_kw_domains,
+                matched_keywords=ka_matched_keywords,
             )
         elif matched_patterns:
             _handle_pattern_match(
@@ -626,6 +641,11 @@ def process_message(message_str: str) -> None:
                 if kw_id not in state.keyword_targets:
                     continue
                 seen_kw.add(kw_id)
+                target = state.keyword_targets[kw_id]
+                kw_matched_keywords = find_matching_keywords(
+                    kw_domains,
+                    target.get("keywords", [kw_id]),
+                )
                 _handle_keyword_match(
                     kw_domains[0],
                     all_domains,
@@ -636,6 +656,7 @@ def process_message(message_str: str) -> None:
                     certkit_url,
                     sha256,
                     serial_number,
+                    matched_keywords=kw_matched_keywords,
                 )
 
     except Exception as e:

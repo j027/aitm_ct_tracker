@@ -35,6 +35,7 @@ _COLUMNS = [
     "api_ids",
     "keyword",
     "keyword_match_domains",
+    "matched_keywords",
 ]
 
 _LIST_FIELDS = {
@@ -45,6 +46,7 @@ _LIST_FIELDS = {
     "confirmed_attacker_ip_matches",
     "api_ids",
     "keyword_match_domains",
+    "matched_keywords",
 }
 
 

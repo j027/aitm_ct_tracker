@@ -3,7 +3,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ct_watcher.utils import match_keyword_targets
+from ct_watcher.utils import find_matching_keywords, match_keyword_targets
 
 
 class TestMatchKeywordTargets:
@@ -41,6 +41,20 @@ class TestMatchKeywordTargets:
         result = match_keyword_targets(domains, kt)
         assert "morgan" in result
         assert len(result["morgan"]) == 2
+
+    def test_only_matching_keywords_are_returned(self):
+        domains = ["adfmorgan.evil.example.com"]
+        result = find_matching_keywords(domains, ["morgan", "mailladfmro"])
+        assert result == ["morgan"]
+
+    def test_matching_keywords_are_unique(self):
+        domains = [
+            "adfmorgan.evil.example.com",
+            "mailladfmro.evil.example.com",
+            "othermorgan.evil.example.com",
+        ]
+        result = find_matching_keywords(domains, ["morgan", "mailladfmro"])
+        assert result == ["morgan", "mailladfmro"]
 
     def test_case_insensitive(self):
         domains = ["Adfmorgan.EVIL.example.COM"]

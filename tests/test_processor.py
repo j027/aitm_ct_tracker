@@ -1,9 +1,12 @@
 import os
 import sys
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ct_watcher.processor import _build_certkit_url
+from ct_watcher import state
+from ct_watcher.email_sender import EmailSendStatus
+from ct_watcher.processor import _build_certkit_url, _finalize_alert
 
 _EMPTY_SHA256 = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
 _SERIAL = "0526D195A45A0C210D819B7E85435FF35CC6"
@@ -58,3 +61,49 @@ class TestBuildCertkitUrl:
         assert url is not None
         assert "sha256=" in url
         assert "serial=" not in url
+
+
+class TestFinalizeAlert:
+    def test_keyword_matches_reach_email_and_alert(self):
+        original_targets = state.state.keyword_targets
+        state.state.keyword_targets = {
+            "berkeley": {
+                "type": "keyword",
+                "name": "University of California, Berkeley",
+                "email": "security@berkeley.edu",
+                "keywords": ["calcentraltiw", "notmatched"],
+            }
+        }
+        try:
+            with (
+                patch("ct_watcher.processor.send_automated_target_email") as send_email,
+                patch("ct_watcher.processor._dispatch_alert") as dispatch_alert,
+            ):
+                send_email.return_value = EmailSendStatus("skipped", "test")
+                _finalize_alert(
+                    domain="calcentraltiw.evil.example.com",
+                    all_domains=["calcentraltiw.evil.example.com"],
+                    not_before=None,
+                    is_known_attacker=False,
+                    registrar=None,
+                    is_cloudflare=False,
+                    nameservers_list=None,
+                    all_ips=[],
+                    non_cdn_ips=[],
+                    confirmed_attacker_ip_matches=[],
+                    reg_date=None,
+                    api_ids=[],
+                    api_id=None,
+                    certkit_url=None,
+                    sha256=None,
+                    serial_number=None,
+                    keyword="berkeley",
+                    keyword_match_domains=["calcentraltiw.evil.example.com"],
+                    matched_keywords=["calcentraltiw"],
+                )
+
+            assert send_email.call_args.kwargs["matched_keywords"] == ["calcentraltiw"]
+            alert = dispatch_alert.call_args.args[0]
+            assert alert.matched_keywords == ["calcentraltiw"]
+        finally:
+            state.state.keyword_targets = original_targets

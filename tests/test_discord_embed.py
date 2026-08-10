@@ -195,6 +195,23 @@ class TestDiscordEmbedFields:
     """Tests for individual field rendering."""
 
     @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_keyword_fields_show_actual_matches_without_target_key(self):
+        embed = build_embed(
+            _make_alert(
+                keyword="berkeley",
+                matched_keywords=["calcentraltiw"],
+                keyword_match_domains=["calcentraltiw.evil.example.com"],
+            )
+        )
+        field_names = [f["name"] for f in embed["fields"]]
+        assert "🔑 Keyword" not in field_names
+
+        matched_fields = [f for f in embed["fields"] if f["name"] == "📋 Matched keyword(s)"]
+        assert len(matched_fields) == 1
+        assert matched_fields[0]["value"] == "`calcentraltiw`"
+        assert "berkeley" not in matched_fields[0]["value"]
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
     def test_matched_domain_defanged(self):
         embed = build_embed(
             _make_alert(

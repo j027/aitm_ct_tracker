@@ -53,6 +53,7 @@ def _build_email_body(
     non_cdn_ips: Optional[List[str]],
     api_ids: List[str],
     keyword: Optional[str] = None,
+    matched_keywords: Optional[List[str]] = None,
 ) -> str:
     """Render email template and append automation disclaimer."""
     iocs_list = _build_iocs_list(all_domains, non_cdn_ips)
@@ -60,6 +61,7 @@ def _build_email_body(
     identifier = build_identifier_text(
         api_ids=api_ids if api_ids else None,
         keyword=keyword,
+        matched_keywords=matched_keywords,
     )
     body = body.replace("{IDENTIFIER}", identifier).rstrip()
     return f"{body}\n\n{AUTOMATED_EMAIL_DISCLAIMER}\n"
@@ -77,6 +79,7 @@ def send_automated_target_email(
     non_cdn_ips: Optional[List[str]],
     target_api_ids: List[str] | None = None,
     keyword: Optional[str] = None,
+    matched_keywords: Optional[List[str]] = None,
 ) -> EmailSendStatus:
     """Send automated SMTP email when policy requirements are met.
 
@@ -87,6 +90,7 @@ def send_automated_target_email(
         non_cdn_ips: Non-CDN resolved IPs.
         target_api_ids: Duo IDs belonging to this target (empty list = no identifiers).
         keyword: Keyword for keyword-based targets (None = Duo target).
+        matched_keywords: Configured keywords that matched the certificate domains.
     """
     if target_api_ids is None:
         target_api_ids = []
@@ -114,7 +118,13 @@ def send_automated_target_email(
         return EmailSendStatus("skipped", "Skipped: only emailing watched orgs")
 
     subject = EMAIL_SUBJECT.replace("{TARGET_NAME}", target_name)
-    body = _build_email_body(all_domains, non_cdn_ips, target_api_ids, keyword=keyword)
+    body = _build_email_body(
+        all_domains,
+        non_cdn_ips,
+        target_api_ids,
+        keyword=keyword,
+        matched_keywords=matched_keywords,
+    )
 
     message = EmailMessage()
     message["Subject"] = subject

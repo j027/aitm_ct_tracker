@@ -28,3 +28,4 @@ class AlertInfo:
     serial_number: str | None = None
     keyword: str | None = None
     keyword_match_domains: List[str] | None = None
+    matched_keywords: List[str] | None = None

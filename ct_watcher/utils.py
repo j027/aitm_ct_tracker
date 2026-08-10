@@ -109,10 +109,31 @@ def match_keyword_targets(
         parts = d.split(".")
         for kw_id, target in keyword_targets.items():
             keywords = target.get("keywords", [kw_id])
-            if any(kw.lower() in part for part in parts for kw in keywords):
+            if _matching_keywords_in_parts(parts, keywords):
                 results.setdefault(kw_id, []).append(d)
 
     return results
+
+
+def _matching_keywords_in_parts(parts: List[str], keywords: List[str]) -> List[str]:
+    """Return configured keywords matching any of the domain parts."""
+    return [kw for kw in keywords if any(kw.lower() in part for part in parts)]
+
+
+def find_matching_keywords(all_domains: List[str], keywords: List[str]) -> List[str]:
+    """Return unique configured keywords matching any supplied domain."""
+    matches: List[str] = []
+    seen: set[str] = set()
+
+    for domain in all_domains:
+        parts = domain.strip().lower().split(".")
+        for keyword in _matching_keywords_in_parts(parts, keywords):
+            normalized = keyword.lower()
+            if normalized not in seen:
+                seen.add(normalized)
+                matches.append(keyword)
+
+    return matches
 
 
 _DUO_ATTRIBUTION_NOTE = (
@@ -123,21 +144,26 @@ _DUO_ATTRIBUTION_NOTE = (
 )
 
 _KEYWORD_ATTRIBUTION_NOTE = (
-    "Note: This detection is based on a distinctive keyword match. The"
-    " target organization may not use Duo, or may only use it for some"
-    " users. If you believe this is a false positive or reached the wrong"
-    " organization, please let me know."
+    "Note: This alert is based on a keyword match,"
+    " which is more likely to result in false positives."
+    " If you believe this is a false positive or reached the"
+    " wrong organization, please let me know."
 )
 
 
-def build_identifier_text(api_ids: List[str] | None = None, keyword: str | None = None) -> str:
+def build_identifier_text(
+    api_ids: List[str] | None = None,
+    keyword: str | None = None,
+    matched_keywords: List[str] | None = None,
+) -> str:
     """Build the identifier block for email templates.
 
     Returns the full ``{IDENTIFIER}`` replacement text — label, value, and
     attribution note — appropriate for the target type.
     """
     if keyword:
-        return f"Keyword match: {keyword}\n\n{_KEYWORD_ATTRIBUTION_NOTE}"
+        keyword_text = ", ".join(matched_keywords or [keyword])
+        return f"Matched keyword(s): {keyword_text}\n\n{_KEYWORD_ATTRIBUTION_NOTE}"
     if api_ids:
         duo_urls = [f"https://api-{aid}.duosecurity.com" for aid in api_ids]
         duo_str = "\n".join(duo_urls)

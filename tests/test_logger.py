@@ -85,7 +85,7 @@ class TestCsvLogging:
         with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
             tmp = f.name
         try:
-            alert = _make_alert()
+            alert = _make_alert(matched_keywords=["calcentraltiw", "login"])
             log_alert_to_csv(alert, log_path=tmp)
 
             with open(tmp) as f:
@@ -97,6 +97,7 @@ class TestCsvLogging:
             assert row["all_ips"] == "1.2.3.4|5.6.7.8"
             assert row["non_cdn_ips"] == "1.2.3.4"
             assert row["confirmed_attacker_ip_matches"] == "1.2.3.4"
+            assert row["matched_keywords"] == "calcentraltiw|login"
         finally:
             os.unlink(tmp)
 
@@ -109,6 +110,7 @@ class TestCsvLogging:
                 all_ips=None,
                 non_cdn_ips=None,
                 confirmed_attacker_ip_matches=None,
+                matched_keywords=None,
             )
             log_alert_to_csv(alert, log_path=tmp)
 
@@ -119,6 +121,7 @@ class TestCsvLogging:
             assert row["all_ips"] == ""
             assert row["non_cdn_ips"] == ""
             assert row["confirmed_attacker_ip_matches"] == ""
+            assert row["matched_keywords"] == ""
         finally:
             os.unlink(tmp)
 

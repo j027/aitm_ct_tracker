@@ -115,9 +115,9 @@ def _finalize_alert(
     certkit_url: str | None,
     sha256: str | None,
     serial_number: str | None,
+    matched_keywords: List[str] | None,
     keyword: str | None = None,
     keyword_match_domains: List[str] | None = None,
-    matched_keywords: List[str] | None = None,
 ) -> None:
     """Resolve targets, send per-target emails, build and dispatch alert.
 
@@ -417,6 +417,7 @@ def _handle_pattern_match(
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
+        matched_keywords=None,
     )
     return True
 

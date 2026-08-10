@@ -162,7 +162,9 @@ def build_identifier_text(
     attribution note — appropriate for the target type.
     """
     if keyword:
-        keyword_text = ", ".join(matched_keywords or [keyword])
+        if not matched_keywords:
+            raise ValueError("matched_keywords is required for keyword alerts")
+        keyword_text = ", ".join(matched_keywords)
         return f"Matched keyword(s): {keyword_text}\n\n{_KEYWORD_ATTRIBUTION_NOTE}"
     if api_ids:
         duo_urls = [f"https://api-{aid}.duosecurity.com" for aid in api_ids]

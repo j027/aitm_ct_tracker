@@ -2,6 +2,8 @@ import sys
 import os
 import time
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from ct_watcher.utils import build_identifier_text, calculate_freshness, get_base_domain
@@ -101,17 +103,17 @@ class TestBuildIdentifierText:
         )
         assert "Matched keyword(s): morgan, mailladfmro" in result
 
-    def test_keyword_falls_back_to_identifier(self):
-        result = build_identifier_text(keyword="legacy-key")
-        assert "Matched keyword(s): legacy-key" in result
+    def test_keyword_requires_matched_keywords(self):
+        with pytest.raises(ValueError, match="matched_keywords is required"):
+            build_identifier_text(keyword="legacy-key")
 
     def test_keyword_attribution_note(self):
         result = build_identifier_text(
             keyword="berkeley",
             matched_keywords=["calcentraltiw"],
         )
-        assert "configured keyword match" in result
-        assert "verified Duo association" in result
+        assert "keyword match" in result
+        assert "more likely to result in false positives" in result
 
     def test_empty_returns_empty(self):
         result = build_identifier_text()

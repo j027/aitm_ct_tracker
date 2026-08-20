@@ -1,7 +1,7 @@
 """Main entry point for CT Watcher."""
 
 import asyncio
-from .config import DISCORD_WEBHOOK, CDN_NETWORKS
+from .config import DISCORD_WEBHOOK, APPRISE_URLS, EMAIL_ENABLED, SMTP_ENABLED, CDN_NETWORKS
 from .state import state
 from .loaders import (
     load_known_attacker_domains,
@@ -17,8 +17,8 @@ from .websocket_client import run_websocket_client
 
 def main() -> None:
     """Main entry point."""
-    if not DISCORD_WEBHOOK:
-        raise RuntimeError("DISCORD_WEBHOOK is not set in the environment or .env file")
+    if not (DISCORD_WEBHOOK or APPRISE_URLS or (EMAIL_ENABLED and SMTP_ENABLED)):
+        print("[*] No notification channels configured — alerts will be logged only")
 
     # Load all configuration files
     state.known_attacker_domains = load_known_attacker_domains()

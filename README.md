@@ -42,6 +42,7 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
 1. Clone the repository and navigate to the project directory.
 2. Create a `.env` file based on the `.env.example` and fill in the required environment variables.
    - `CERTSTREAM_WS_URL` - WebSocket URL of your certstream server. With the included Docker setup on the same machine: `ws://127.0.0.1:8080/`
+   - Notification channels (`DISCORD_WEBHOOK`, `APPRISE_URLS`, or email via `EMAIL_ENABLED` + `SMTP_ENABLED`) are all optional and can be used individually (e.g. email-only) or omitted entirely. With none configured, alerts are only written to `alerts.csv` and printed to stdout.
 3. ```docker-compose up -d``` to start the certstream server.
 4. (Optional) Create and activate a virtual environment:
    ```bash

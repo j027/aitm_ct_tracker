@@ -1,5 +1,7 @@
 """Configuration and constants for CT Watcher."""
 
+from __future__ import annotations
+
 import os
 import re
 import ipaddress

@@ -1,5 +1,7 @@
 """Certificate message processing for CT Watcher."""
 
+from __future__ import annotations
+
 import json
 import time
 import traceback

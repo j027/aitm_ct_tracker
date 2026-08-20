@@ -1,5 +1,7 @@
 """SMTP email sending for CT Watcher."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from email.message import EmailMessage
 import smtplib

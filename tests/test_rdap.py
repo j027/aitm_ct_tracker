@@ -158,13 +158,13 @@ class TestDomainLookup:
         assert d is None
 
     def test_no_known_server_returns_none(self):
-        with (
-            patch.object(rdap_module, "_overrides_cache", None),
-            patch.object(rdap_module, "_load_iana_bootstrap", return_value={"com": _COM_RDAP}),
-            patch.object(rdap_module, "_load_overrides", return_value={}),
-            patch("ct_watcher.rdap.whois_lookup", return_value=(None, None)) as mock_whois,
-        ):
-            r, d = get_domain_info("example.tk")
+        with patch.object(rdap_module, "_overrides_cache", None):
+            with patch.object(rdap_module, "_load_iana_bootstrap", return_value={"com": _COM_RDAP}):
+                with patch.object(rdap_module, "_load_overrides", return_value={}):
+                    with patch(
+                        "ct_watcher.rdap.whois_lookup", return_value=(None, None)
+                    ) as mock_whois:
+                        r, d = get_domain_info("example.tk")
 
         assert r is None
         assert d is None

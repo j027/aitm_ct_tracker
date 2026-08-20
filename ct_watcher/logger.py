@@ -1,5 +1,7 @@
 """CSV logging for CT Watcher alerts."""
 
+from __future__ import annotations
+
 import csv
 import os
 import threading

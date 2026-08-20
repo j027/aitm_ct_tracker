@@ -6,6 +6,8 @@ Usage:
     python expiry_checker.py --dry-run    # preview only, no file changes
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys

@@ -75,32 +75,30 @@ class TestFinalizeAlert:
             }
         }
         try:
-            with (
-                patch("ct_watcher.processor.send_automated_target_email") as send_email,
-                patch("ct_watcher.processor._dispatch_alert") as dispatch_alert,
-            ):
-                send_email.return_value = EmailSendStatus("skipped", "test")
-                _finalize_alert(
-                    domain="calcentraltiw.evil.example.com",
-                    all_domains=["calcentraltiw.evil.example.com"],
-                    not_before=None,
-                    is_known_attacker=False,
-                    registrar=None,
-                    is_cloudflare=False,
-                    nameservers_list=None,
-                    all_ips=[],
-                    non_cdn_ips=[],
-                    confirmed_attacker_ip_matches=[],
-                    reg_date=None,
-                    api_ids=[],
-                    api_id=None,
-                    certkit_url=None,
-                    sha256=None,
-                    serial_number=None,
-                    keyword="berkeley",
-                    keyword_match_domains=["calcentraltiw.evil.example.com"],
-                    matched_keywords=["calcentraltiw"],
-                )
+            with patch("ct_watcher.processor.send_automated_target_email") as send_email:
+                with patch("ct_watcher.processor._dispatch_alert") as dispatch_alert:
+                    send_email.return_value = EmailSendStatus("skipped", "test")
+                    _finalize_alert(
+                        domain="calcentraltiw.evil.example.com",
+                        all_domains=["calcentraltiw.evil.example.com"],
+                        not_before=None,
+                        is_known_attacker=False,
+                        registrar=None,
+                        is_cloudflare=False,
+                        nameservers_list=None,
+                        all_ips=[],
+                        non_cdn_ips=[],
+                        confirmed_attacker_ip_matches=[],
+                        reg_date=None,
+                        api_ids=[],
+                        api_id=None,
+                        certkit_url=None,
+                        sha256=None,
+                        serial_number=None,
+                        keyword="berkeley",
+                        keyword_match_domains=["calcentraltiw.evil.example.com"],
+                        matched_keywords=["calcentraltiw"],
+                    )
 
             assert send_email.call_args.kwargs["matched_keywords"] == ["calcentraltiw"]
             alert = dispatch_alert.call_args.args[0]

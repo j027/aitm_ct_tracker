@@ -1,5 +1,7 @@
 """Dynamic CDN IP range fetching and caching."""
 
+from __future__ import annotations
+
 import json
 import os
 import ipaddress

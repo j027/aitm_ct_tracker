@@ -12,7 +12,7 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
 | `known_ips.txt` | Known attacker IPs, so low-confidence matches resolving here are upgraded. |
 | `watched_org_ids.txt` | Optional. Org IDs (one per line) whose alerts are also sent to `DISCORD_WEBHOOK_WATCHED`. |
 
-`targets.json` supports two entry formats:
+`targets.json` supports three entry formats:
 
 **Duo target** (original format — entries with no `"type"` field):
 ```json
@@ -35,6 +35,19 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
   }
 }
 ```
+
+**Duo + keyword target** (an organization that uses Duo, for when attackers forget to proxy the Duo API hostname):
+```json
+{
+  "<duo id>": {
+    "name": "<university name>",
+    "email": "<university email>",
+    "keywords": ["<keyword1>", "<keyword2>"]
+  }
+}
+```
+- Same as a Duo target but with an optional `"keywords"` list — the watcher matches on either the Duo ID or the keywords.
+
 - `type` must be `"keyword"` (Duo entries don't need this field — backwards compatible).
 - `keywords` is a list of strings to match as substrings within subdomain parts (case-insensitive). If omitted, the JSON key itself is used as the keyword.
 

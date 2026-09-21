@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import traceback
@@ -29,6 +30,7 @@ from .discord import send_discord_alert
 from .apprise import send_apprise_alert
 from .email_sender import send_automated_target_email
 from .logger import log_alert_to_csv
+from .console import log
 from .models import AlertInfo
 from .utils import (
     extract_target_id,
@@ -65,16 +67,16 @@ def _build_certkit_url(sha256: str | None, serial_number: str | None) -> str | N
     return None
 
 
-def _print_stats() -> None:
-    """Print processing stats every minute."""
-    current_time = time.time()
-    if current_time - state.last_stats_time >= 60:
+async def report_stats() -> None:
+    """Log processing stats once per minute."""
+    while True:
+        await asyncio.sleep(60)
+        cert_count, alerts_count = state.snapshot_and_reset_stats()
         timestamp_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        print(
-            f"[{timestamp_str}] Processed {state.cert_count} certificates"
-            f" in the last minute | Total alerts: {state.total_alerts_count}"
+        log(
+            f"[{timestamp_str}] Processed {cert_count} certificates"
+            f" in the last minute | Total alerts: {alerts_count}"
         )
-        state.reset_stats()
 
 
 def _dispatch_alert(alert: AlertInfo) -> None:
@@ -237,7 +239,7 @@ def _finalize_alert(
         matched_keywords=matched_keywords if keyword else None,
     )
     _dispatch_alert(alert)
-    state.total_alerts_count += 1
+    state.increment_alerts_count()
 
 
 def _handle_known_attacker(
@@ -272,7 +274,7 @@ def _handle_known_attacker(
     all_ips, non_cdn_ips = get_attacker_ips_for_domain(domain)
     confirmed_attacker_ip_matches = sorted(ip for ip in all_ips if ip in state.known_attacker_ips)
 
-    print(
+    log(
         f"[!] KNOWN ATTACKER DOMAIN DETECTED: {domain}"
         f" (Registrar: {registrar}, IPs: {len(all_ips)},"
         f" Blockable: {len(non_cdn_ips)})"
@@ -333,11 +335,11 @@ def _handle_pattern_match(
             state.clear_alerted_domains()
         state.alerted_domains.add(domain)
 
-    print(f"[+] Potential match: {domain}")
+    log(f"[+] Potential match: {domain}")
 
     # Only alert if multiple domains in certificate
     if len(all_domains) <= 1:
-        print(f"[~] Skipping {domain} (only single domain in certificate)")
+        log(f"[~] Skipping {domain} (only single domain in certificate)")
         return False
 
     # Get nameserver and registrar info
@@ -370,32 +372,32 @@ def _handle_pattern_match(
     )
 
     if not high_confidence:
-        print(f"[~] Skipping {domain} (low confidence - no alert)")
+        log(f"[~] Skipping {domain} (low confidence - no alert)")
         return False
 
     # High confidence confirmed — now track IPs
     track_resolved_ips(all_ips, non_cdn_ips, domain)
 
     cf_status = "Cloudflare" if is_cloudflare else "Non-Cloudflare"
-    print(
+    log(
         f"[!] ALERT [HIGH]: Multiple domains ({len(all_domains)}),"
         f" {cf_status} NS: {domain} (Registrar: {registrar},"
         f" IPs: {len(all_ips)}, Blockable: {len(non_cdn_ips)})"
     )
 
     if len(api_ids) > 1:
-        print(f"    -> Multi-Duo ({len(api_ids)} IDs): {', '.join(api_ids)}")
+        log(f"    -> Multi-Duo ({len(api_ids)} IDs): {', '.join(api_ids)}")
     if is_known_target and api_id:
         known_targets = [aid for aid in api_ids if aid in state.target_mapping]
         for kt in known_targets:
-            print(f"    -> Known target: {state.target_mapping[kt]['name']}")
+            log(f"    -> Known target: {state.target_mapping[kt]['name']}")
     elif has_confirmed_attacker_ip_match:
-        print(
+        log(
             f"    -> Escalated to HIGH via known attacker IP match:"
             f" {', '.join(confirmed_attacker_ip_matches)}"
         )
     elif is_cloudflare and is_8char_hex:
-        print("    -> 8-char hex + Cloudflare nameservers")
+        log("    -> 8-char hex + Cloudflare nameservers")
 
     with state.lock:
         if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
@@ -450,10 +452,10 @@ def _handle_keyword_match(
 
     target_info = state.keyword_targets.get(keyword)
     if not target_info:
-        print(f"[~] Skipping keyword '{keyword}' (not in keyword_targets)")
+        log(f"[~] Skipping keyword '{keyword}' (not in keyword_targets)")
         return False
 
-    print(f"[+] Potential keyword match: {domain} ({keyword} -> {target_info['name']})")
+    log(f"[+] Potential keyword match: {domain} ({keyword} -> {target_info['name']})")
 
     is_cloudflare, nameservers_list = get_nameservers(domain)
     registrar, reg_date = get_domain_info(domain)
@@ -464,7 +466,7 @@ def _handle_keyword_match(
 
     if not has_confirmed_attacker_ip:
         cf_tag = "CF" if is_cloudflare else "Non-CF"
-        print(
+        log(
             f"[~] Skipping {domain} ({keyword} -> {target_info['name']})"
             f" — low confidence ({cf_tag}, no attacker IP match,"
             f" {len(all_domains)} domain(s) in cert)"
@@ -472,7 +474,7 @@ def _handle_keyword_match(
         return False
 
     track_resolved_ips(all_ips, non_cdn_ips, domain)
-    print(
+    log(
         f"[!] ALERT [KEYWORD]: {domain} ({keyword} -> {target_info['name']})"
         f" — escalated via attacker IP match:"
         f" {', '.join(confirmed_attacker_ip_matches)}"
@@ -513,7 +515,7 @@ def process_message(message_str: str) -> None:
         try:
             message = json.loads(message_str)
         except json.JSONDecodeError as e:
-            print(f"[!] JSON decode error: {e}")
+            log(f"[!] JSON decode error: {e}")
             return
 
         msg_type = message.get("message_type")
@@ -550,8 +552,7 @@ def process_message(message_str: str) -> None:
                 pass
 
         # Update stats
-        state.cert_count += 1
-        _print_stats()
+        state.increment_cert_count()
 
         # First pass: collect Duo api-IDs, known attacker domains, and keyword matches
         known_attacker_domains = []
@@ -580,7 +581,7 @@ def process_message(message_str: str) -> None:
                             matched_patterns[aid] = domain
 
             except Exception as e:
-                print(f"[!] Error processing domain {d}: {e}")
+                log(f"[!] Error processing domain {d}: {e}")
                 continue
 
         # Run keyword scan against all domains (including known attacker
@@ -663,5 +664,5 @@ def process_message(message_str: str) -> None:
                 )
 
     except Exception as e:
-        print(f"[!] Error in process_message: {e}")
-        traceback.print_exc()
+        log(f"[!] Error in process_message: {e}")
+        log(traceback.format_exc())

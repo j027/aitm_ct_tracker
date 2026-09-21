@@ -10,6 +10,8 @@ import socket
 import time
 from typing import Dict, Optional, Tuple
 
+from .console import log
+
 _WHOIS_TIMEOUT = 5
 _WHOIS_CACHE_TTL = 2592000  # 30 days — WHOIS servers rarely change
 
@@ -207,14 +209,14 @@ def whois_lookup(base_domain: str) -> Tuple[Optional[str], Optional[str]]:
     tld = base_domain.rsplit(".", 1)[-1]
     server = _get_whois_server(tld)
     if not server:
-        print(f'[~] WHOIS lookup failed for {base_domain} (no WHOIS server known for TLD "{tld}")')
+        log(f'[~] WHOIS lookup failed for {base_domain} (no WHOIS server known for TLD "{tld}")')
         return (None, None)
 
     try:
         query = _QUERY_PREFIXES.get(tld, "") + base_domain
         raw = _whois_query_raw(server, query)
     except Exception as e:
-        print(f"[~] WHOIS lookup failed for {base_domain} ({e})")
+        log(f"[~] WHOIS lookup failed for {base_domain} ({e})")
         return (None, None)
 
     return _parse_whois(raw)
@@ -236,14 +238,14 @@ def whois_check_full(
     tld = base_domain.rsplit(".", 1)[-1]
     server = _get_whois_server(tld)
     if not server:
-        print(f'[~] WHOIS check failed for {base_domain} (no WHOIS server known for TLD "{tld}")')
+        log(f'[~] WHOIS check failed for {base_domain} (no WHOIS server known for TLD "{tld}")')
         return (None, None, None, False)
 
     try:
         query = _QUERY_PREFIXES.get(tld, "") + base_domain
         raw = _whois_query_raw(server, query)
     except Exception as e:
-        print(f"[~] WHOIS check failed for {base_domain} ({e})")
+        log(f"[~] WHOIS check failed for {base_domain} ({e})")
         return (None, None, None, False)
 
     registrar, reg_date = _parse_whois(raw)

@@ -1,9 +1,8 @@
 """Global state management for CT Watcher."""
 
 import threading
-import time
 from dataclasses import dataclass, field
-from typing import Dict, Set, Any
+from typing import Dict, Set, Any, Tuple
 
 
 @dataclass
@@ -28,7 +27,6 @@ class WatcherState:
 
     # Stats
     cert_count: int = 0
-    last_stats_time: float = field(default_factory=time.time)
     total_alerts_count: int = 0
 
     # Reconnection
@@ -37,6 +35,7 @@ class WatcherState:
     # Locks
     lock: threading.Lock = field(default_factory=threading.Lock)
     ip_save_lock: threading.Lock = field(default_factory=threading.Lock)
+    stats_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def clear_seen_domains(self):
         """Clear seen domains set."""
@@ -50,10 +49,22 @@ class WatcherState:
         """Clear alerted certificates set."""
         self.alerted_certificates.clear()
 
-    def reset_stats(self):
-        """Reset stats for new interval."""
-        self.cert_count = 0
-        self.last_stats_time = time.time()
+    def increment_cert_count(self):
+        """Count one processed certificate."""
+        with self.stats_lock:
+            self.cert_count += 1
+
+    def increment_alerts_count(self):
+        """Count one dispatched alert."""
+        with self.stats_lock:
+            self.total_alerts_count += 1
+
+    def snapshot_and_reset_stats(self) -> Tuple[int, int]:
+        """Return (certs since last snapshot, cumulative alerts) and reset cert count."""
+        with self.stats_lock:
+            cert_count = self.cert_count
+            self.cert_count = 0
+            return cert_count, self.total_alerts_count
 
 
 # Global state instance

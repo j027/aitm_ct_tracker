@@ -8,6 +8,7 @@ from .config import APPRISE_URLS, EMAIL_ENABLED
 from .models import AlertInfo
 from .state import state
 from .utils import defang_domain, calculate_freshness, format_duo_ids
+from .console import log
 
 
 def build_apprise_alert(alert: AlertInfo) -> str:
@@ -133,4 +134,4 @@ def send_apprise_alert(
     try:
         apobj.notify(title=title, body=body, body_format=apprise.NotifyFormat.MARKDOWN)
     except Exception as e:
-        print(f"[!] Apprise notification failed for {alert.domain}: {e}")
+        log(f"[!] Apprise notification failed for {alert.domain}: {e}")

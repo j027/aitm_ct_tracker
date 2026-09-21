@@ -8,6 +8,7 @@ from typing import List, Tuple
 from .config import CDN_NETWORKS, ATTACKER_IPS_FILE
 from .state import state
 from .dns_resolver import resolve_a
+from .console import log
 
 
 def is_cdn_ip(ip_str: str) -> bool:
@@ -37,7 +38,7 @@ def save_attacker_ips(filepath: str = ATTACKER_IPS_FILE) -> None:
             with open(filepath, "w") as f:
                 json.dump(state.attacker_ips_data, f, indent=2)
     except Exception as e:
-        print(f"[!] Error saving attacker IPs: {e}")
+        log(f"[!] Error saving attacker IPs: {e}")
 
 
 def track_attacker_ip(ip: str, domain: str, is_cdn: bool = False) -> None:
@@ -53,7 +54,7 @@ def track_attacker_ip(ip: str, domain: str, is_cdn: bool = False) -> None:
                 "is_cdn": is_cdn,
                 "count": 1,
             }
-            print(f"[+] New attacker IP tracked: {ip} {'(CDN)' if is_cdn else ''}")
+            log(f"[+] New attacker IP tracked: {ip} {'(CDN)' if is_cdn else ''}")
         else:
             entry = ips_data[ip]
             entry["last_seen"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

@@ -13,6 +13,7 @@ from .config import (
     KNOWN_IPS_FILE,
     WATCHED_ORG_IDS_FILE,
 )
+from .console import log
 
 DEFAULT_EMAIL_TEMPLATE = """To the Security Team,
 
@@ -36,7 +37,7 @@ def load_known_attacker_domains(filepath: str = KNOWN_DOMAINS_FILE) -> Set[str]:
     """
     domains = set()
     if not os.path.exists(filepath):
-        print(f"[*] No known domains file found at {filepath}")
+        log(f"[*] No known domains file found at {filepath}")
         return domains
 
     try:
@@ -48,9 +49,9 @@ def load_known_attacker_domains(filepath: str = KNOWN_DOMAINS_FILE) -> Set[str]:
                 # Un-defang: replace [.] with .
                 domain = line.replace("[.]", ".").replace("[dot]", ".").lower()
                 domains.add(domain)
-        print(f"[*] Loaded {len(domains)} known attacker domains")
+        log(f"[*] Loaded {len(domains)} known attacker domains")
     except Exception as e:
-        print(f"[!] Error loading known domains: {e}")
+        log(f"[!] Error loading known domains: {e}")
 
     return domains
 
@@ -78,7 +79,7 @@ def load_target_mapping(
     keyword_targets: Dict[str, Dict[str, Any]] = {}
 
     if not os.path.exists(filepath):
-        print(f"[*] No targets file found at {filepath}")
+        log(f"[*] No targets file found at {filepath}")
         return duo_targets, keyword_targets
 
     try:
@@ -105,9 +106,9 @@ def load_target_mapping(
                             "keywords": keywords,
                         }
 
-        print(f"[*] Loaded {duo_count} Duo + {kw_count} keyword targets ({len(mapping)} total)")
+        log(f"[*] Loaded {duo_count} Duo + {kw_count} keyword targets ({len(mapping)} total)")
     except Exception as e:
-        print(f"[!] Error loading targets: {e}")
+        log(f"[!] Error loading targets: {e}")
 
     return duo_targets, keyword_targets
 
@@ -115,14 +116,14 @@ def load_target_mapping(
 def load_email_template(filepath: str = EMAIL_TEMPLATE_FILE) -> str:
     """Load email body template from file. Returns default template if file not found."""
     if not os.path.exists(filepath):
-        print(f"[*] No email template found at {filepath}, using default")
+        log(f"[*] No email template found at {filepath}, using default")
         return DEFAULT_EMAIL_TEMPLATE
 
     try:
         with open(filepath, "r") as f:
             return f.read()
     except Exception as e:
-        print(f"[!] Error loading email template: {e}, using default")
+        log(f"[!] Error loading email template: {e}, using default")
         return DEFAULT_EMAIL_TEMPLATE
 
 
@@ -141,10 +142,10 @@ def load_attacker_ips(filepath: str = ATTACKER_IPS_FILE) -> Dict[str, Any]:
             data["ips"] = {}
         if "last_updated" not in data:
             data["last_updated"] = None
-        print(f"[*] Loaded {len(data.get('ips', {}))} tracked attacker IPs")
+        log(f"[*] Loaded {len(data.get('ips', {}))} tracked attacker IPs")
         return data
     except Exception as e:
-        print(f"[!] Error loading attacker IPs: {e}")
+        log(f"[!] Error loading attacker IPs: {e}")
         return default_structure
 
 
@@ -155,7 +156,7 @@ def load_known_attacker_ips(filepath: str = KNOWN_IPS_FILE) -> Set[str]:
     """
     known_ips: Set[str] = set()
     if not os.path.exists(filepath):
-        print(f"[*] No known attacker IP file found at {filepath}")
+        log(f"[*] No known attacker IP file found at {filepath}")
         return known_ips
 
     invalid_count = 0
@@ -172,11 +173,11 @@ def load_known_attacker_ips(filepath: str = KNOWN_IPS_FILE) -> Set[str]:
                 except ValueError:
                     invalid_count += 1
 
-        print(f"[*] Loaded {len(known_ips)} confirmed attacker IPs")
+        log(f"[*] Loaded {len(known_ips)} confirmed attacker IPs")
         if invalid_count:
-            print(f"[~] Skipped {invalid_count} invalid IP entries in {filepath}")
+            log(f"[~] Skipped {invalid_count} invalid IP entries in {filepath}")
     except Exception as e:
-        print(f"[!] Error loading known attacker IPs: {e}")
+        log(f"[!] Error loading known attacker IPs: {e}")
 
     return known_ips
 
@@ -199,8 +200,8 @@ def load_watched_org_ids(filepath: str = WATCHED_ORG_IDS_FILE) -> Set[str]:
                     continue
                 watched.add(line)
         if watched:
-            print(f"[*] Loaded {len(watched)} watched org IDs")
+            log(f"[*] Loaded {len(watched)} watched org IDs")
     except Exception as e:
-        print(f"[!] Error loading watched org IDs: {e}")
+        log(f"[!] Error loading watched org IDs: {e}")
 
     return watched

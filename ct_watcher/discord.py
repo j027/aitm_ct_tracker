@@ -11,6 +11,7 @@ from .config import DISCORD_WEBHOOK, EMAIL_ENABLED, EMAIL_SUBJECT
 from .models import AlertInfo
 from .state import state
 from .utils import defang_domain, calculate_freshness, format_duo_ids, ids_for_target
+from .console import log
 
 
 # Discord embed hard limits
@@ -569,7 +570,7 @@ def send_discord_alert(
     """Send alert to Discord webhook."""
     webhook_url = DISCORD_WEBHOOK
     if not webhook_url:
-        print("[!] Discord webhook URL not set; cannot send alert.")
+        log("[!] Discord webhook URL not set; cannot send alert.")
         return
 
     # Pre-compute mailto so we know whether trimming occurred before building the embed.
@@ -592,13 +593,13 @@ def send_discord_alert(
     try:
         resp = requests.post(webhook_url, json=payload, timeout=10)
         if resp.status_code >= 300:
-            print(f"[!] Discord webhook error {resp.status_code}: {resp.text}")
+            log(f"[!] Discord webhook error {resp.status_code}: {resp.text}")
             if resp.status_code == 400:
                 minimal_embed = _build_minimal_embed(alert)
                 minimal_payload: Dict[str, Any] = {"embeds": [minimal_embed]}
                 retry_resp = requests.post(webhook_url, json=minimal_payload, timeout=10)
                 if retry_resp.status_code >= 300:
-                    print(
+                    log(
                         f"[!] Discord fallback webhook error"
                         f" {retry_resp.status_code}: {retry_resp.text}"
                     )
@@ -615,14 +616,14 @@ def send_discord_alert(
                 try:
                     requests.post(webhook_url, json={"content": followup_content}, timeout=10)
                 except requests.exceptions.RequestException as e:
-                    print(f"[!] Discord follow-up IOC message failed for {alert.domain}: {e}")
+                    log(f"[!] Discord follow-up IOC message failed for {alert.domain}: {e}")
     except requests.exceptions.Timeout:
-        print(f"[!] Discord webhook timeout for {alert.domain}")
+        log(f"[!] Discord webhook timeout for {alert.domain}")
     except requests.exceptions.RequestException as e:
-        print(f"[!] Discord webhook request failed for {alert.domain}: {e}")
+        log(f"[!] Discord webhook request failed for {alert.domain}: {e}")
 
     if extra_webhook_url:
         try:
             requests.post(extra_webhook_url, json=payload, timeout=10)
         except requests.exceptions.RequestException as e:
-            print(f"[!] Watched-org Discord webhook failed for {alert.domain}: {e}")
+            log(f"[!] Watched-org Discord webhook failed for {alert.domain}: {e}")

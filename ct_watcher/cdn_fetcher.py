@@ -10,6 +10,8 @@ from typing import Dict, List, Tuple
 
 import requests
 
+from .console import log
+
 CACHE_FILE = "cdn_ranges_cache.json"
 CACHE_TTL_SECONDS = 86400  # 24 hours
 
@@ -55,12 +57,12 @@ def fetch_all() -> Dict[str, List[str]]:
     try:
         results["cloudflare"] = _fetch_cloudflare()
     except Exception as e:
-        print(f"[!] Failed to fetch Cloudflare CDN ranges: {e}")
+        log(f"[!] Failed to fetch Cloudflare CDN ranges: {e}")
 
     try:
         results["fastly"] = _fetch_fastly()
     except Exception as e:
-        print(f"[!] Failed to fetch Fastly CDN ranges: {e}")
+        log(f"[!] Failed to fetch Fastly CDN ranges: {e}")
 
     return results
 
@@ -87,7 +89,7 @@ def load_cache(filepath: str = CACHE_FILE) -> Dict[str, List[str]] | None:
         updated_at = datetime.fromisoformat(cache["updated_at"])
         age = (datetime.now(timezone.utc) - updated_at).total_seconds()
         if age > CACHE_TTL_SECONDS:
-            print(
+            log(
                 f"[~] CDN cache is {age / 3600:.1f}h old"
                 f" (>{CACHE_TTL_SECONDS / 3600:.0f}h), will refresh"
             )
@@ -95,7 +97,7 @@ def load_cache(filepath: str = CACHE_FILE) -> Dict[str, List[str]] | None:
 
         return cache.get("providers", {})
     except Exception as e:
-        print(f"[!] Failed to load CDN cache: {e}")
+        log(f"[!] Failed to load CDN cache: {e}")
         return None
 
 
@@ -111,10 +113,10 @@ def refresh_cdn_cache(filepath: str = CACHE_FILE) -> Dict[str, List[str]]:
 
     cached = load_cache(filepath)
     if cached:
-        print("[~] Using cached CDN ranges (fetch failed)")
+        log("[~] Using cached CDN ranges (fetch failed)")
         return cached
 
-    print("[!] No CDN ranges available (fetch failed, no cache)")
+    log("[!] No CDN ranges available (fetch failed, no cache)")
     return {}
 
 
@@ -143,5 +145,5 @@ def log_cdn_stats(provider_ranges: Dict[str, List[str]]) -> None:
     for provider, cidrs in provider_ranges.items():
         count = len(cidrs)
         total += count
-        print(f"[*] CDN ranges loaded: {provider} = {count} CIDRs")
-    print(f"[*] CDN ranges total: {total} CIDRs")
+        log(f"[*] CDN ranges loaded: {provider} = {count} CIDRs")
+    log(f"[*] CDN ranges total: {total} CIDRs")

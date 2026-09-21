@@ -5,6 +5,7 @@ from typing import List, Set, Tuple
 from .utils import get_base_domain
 from .dns_resolver import resolve_ns
 from .rdap import get_domain_info as _rdap_get_domain_info
+from .console import log
 
 
 def is_known_attacker_domain(domain: str, known_domains: Set[str]) -> bool:
@@ -44,7 +45,7 @@ def get_nameservers(domain: str) -> Tuple[bool, List[str]]:
 
         return (is_cloudflare, nameservers_list)
     except Exception as e:
-        print(f"[!] Error checking nameservers for {domain}: {e}")
+        log(f"[!] Error checking nameservers for {domain}: {e}")
 
     return (False, [])
 

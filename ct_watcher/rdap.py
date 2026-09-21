@@ -19,6 +19,7 @@ import requests
 
 from .utils import get_base_domain
 from .whois import whois_lookup, whois_check_full
+from .console import log
 
 # --- constants ---
 _OVERRIDES_FILE = os.path.join(os.path.dirname(__file__), "rdap_overrides.json")
@@ -110,7 +111,7 @@ def _get_rdap_server(tld: str) -> Optional[str]:
     try:
         bootstrap = _load_iana_bootstrap()
     except Exception as e:
-        print(f"[!] IANA bootstrap download failed: {e}")
+        log(f"[!] IANA bootstrap download failed: {e}")
         bootstrap = {}
     return bootstrap.get(tld)
 
@@ -170,16 +171,16 @@ def _query_rdap_server(base_domain: str, server: str) -> Optional[dict]:
             timeout=_REQUEST_TIMEOUT,
         )
     except requests.Timeout:
-        print(f"[~] RDAP lookup timed out for {base_domain}")
+        log(f"[~] RDAP lookup timed out for {base_domain}")
         return None
     except Exception as e:
-        print(f"[~] RDAP lookup failed for {base_domain} ({e})")
+        log(f"[~] RDAP lookup failed for {base_domain} ({e})")
         return None
 
     if resp.status_code == 200:
         return resp.json()
 
-    print(f"[~] RDAP lookup failed for {base_domain} (HTTP {resp.status_code})")
+    log(f"[~] RDAP lookup failed for {base_domain} (HTTP {resp.status_code})")
     return None
 
 
@@ -238,10 +239,10 @@ def _query_rdap_with_status(base_domain: str, server: str) -> Tuple[Optional[int
             timeout=_REQUEST_TIMEOUT,
         )
     except requests.Timeout:
-        print(f"[~] RDAP lookup timed out for {base_domain}")
+        log(f"[~] RDAP lookup timed out for {base_domain}")
         return (None, None)
     except Exception as e:
-        print(f"[~] RDAP lookup failed for {base_domain} ({e})")
+        log(f"[~] RDAP lookup failed for {base_domain} ({e})")
         return (None, None)
 
     if resp.status_code == 200:

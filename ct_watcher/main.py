@@ -13,12 +13,13 @@ from .loaders import (
 )
 from .cdn_fetcher import load_cdn_networks, log_cdn_stats
 from .websocket_client import run_websocket_client
+from .console import log
 
 
 def main() -> None:
     """Main entry point."""
     if not (DISCORD_WEBHOOK or APPRISE_URLS or (EMAIL_ENABLED and SMTP_ENABLED)):
-        print("[*] No notification channels configured — alerts will be logged only")
+        log("[*] No notification channels configured — alerts will be logged only")
 
     # Load all configuration files
     state.known_attacker_domains = load_known_attacker_domains()

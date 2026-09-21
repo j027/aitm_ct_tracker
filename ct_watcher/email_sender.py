@@ -25,6 +25,7 @@ from .config import (
 )
 from .state import state
 from .utils import defang_domain, build_identifier_text
+from .console import log
 
 
 @dataclass
@@ -153,5 +154,5 @@ def send_automated_target_email(
                 smtp.send_message(message)
         return EmailSendStatus("sent", f"Sent automated email to {target_email}")
     except Exception as exc:
-        print(f"[!] SMTP send failed for {domain}: {exc}")
+        log(f"[!] SMTP send failed for {domain}: {exc}")
         return EmailSendStatus("failed", f"Failed: {str(exc)[:180]}")

@@ -10,6 +10,8 @@ import dns.exception
 import dns.rdatatype
 from dns.query import HTTPVersion
 
+from .console import log
+
 _resolver = None
 _doh_enabled = None
 
@@ -57,7 +59,7 @@ def _resolve(domain: str, rdtype: dns.rdatatype.RdataType) -> List[str]:
     except dns.exception.Timeout:
         pass
     except Exception as e:
-        print(f"[!] DNS error resolving {domain}: {e}")
+        log(f"[!] DNS error resolving {domain}: {e}")
     return results
 
 

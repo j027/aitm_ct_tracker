@@ -366,9 +366,9 @@ COMMON_WORDS_8CHAR = frozenset(
     ]
 )
 
-# Deduplication limits
-SEEN_DOMAINS_LIMIT = 10000
-ALERTED_DOMAINS_LIMIT = 10000
+# Deduplication limit for alerted certificate identities (issuer + serial).
+# Alerts are rare (~2/day), so this covers the short precert/final and
+# multi-log duplicate arrival window many times over.
 ALERTED_CERTIFICATES_LIMIT = 10000
 
 # File paths
@@ -391,9 +391,6 @@ if not _certstream_ws_url:
 CERTSTREAM_WS_URL: str = _certstream_ws_url
 WS_PING_INTERVAL = 30
 WS_PING_TIMEOUT = 10
-
-# Certificate age limit (1 hour)
-MAX_CERT_AGE_SECONDS = 3600
 
 # Known CDN/Cloud IP ranges to exclude from IOCs.
 # Loaded dynamically from cdn_fetcher at startup.

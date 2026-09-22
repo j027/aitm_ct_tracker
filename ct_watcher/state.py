@@ -10,9 +10,7 @@ class WatcherState:
     """Holds all mutable state for the watcher."""
 
     # Deduplication sets
-    seen_domains: Set[str] = field(default_factory=set)
-    alerted_domains: Set[str] = field(default_factory=set)
-    alerted_certificates: Set[int] = field(default_factory=set)
+    alerted_certificates: Set[str] = field(default_factory=set)
 
     # Known data (loaded from files)
     known_attacker_domains: Set[str] = field(default_factory=set)
@@ -36,14 +34,6 @@ class WatcherState:
     lock: threading.Lock = field(default_factory=threading.Lock)
     ip_save_lock: threading.Lock = field(default_factory=threading.Lock)
     stats_lock: threading.Lock = field(default_factory=threading.Lock)
-
-    def clear_seen_domains(self):
-        """Clear seen domains set."""
-        self.seen_domains.clear()
-
-    def clear_alerted_domains(self):
-        """Clear alerted domains set."""
-        self.alerted_domains.clear()
 
     def clear_alerted_certificates(self):
         """Clear alerted certificates set."""

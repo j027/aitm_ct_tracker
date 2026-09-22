@@ -10,10 +10,7 @@ from typing import Dict, List
 
 from .config import (
     DOMAIN_REGEX,
-    SEEN_DOMAINS_LIMIT,
-    ALERTED_DOMAINS_LIMIT,
     ALERTED_CERTIFICATES_LIMIT,
-    MAX_CERT_AGE_SECONDS,
     DISCORD_WEBHOOK,
     DISCORD_WEBHOOK_WATCHED,
     APPRISE_URLS,
@@ -65,6 +62,32 @@ def _build_certkit_url(sha256: str | None, serial_number: str | None) -> str | N
     if serial_number:
         return f"https://www.certkit.io/tools/ct-logs/certificate?serial={serial_number}"
     return None
+
+
+def _certificate_id(leaf_cert: dict) -> str | None:
+    """Return a unique certificate identity: issuer + normalized serial.
+
+    Serial numbers are unique per issuer and stable across precert/final
+    entries and across CT logs, unlike SHA-256 (which differs between
+    precert and final and is often the bogus empty-string hash on tiled
+    logs). Returns None when the serial number is missing.
+    """
+    serial = (leaf_cert.get("serial_number") or "").replace(":", "").strip().upper()
+    if not serial:
+        return None
+    issuer = (leaf_cert.get("issuer") or {}).get("aggregated") or ""
+    return f"{issuer}|{serial}"
+
+
+def _claim_certificate(cert_id: str) -> bool:
+    """Atomically claim a certificate for alerting. False if already claimed."""
+    with state.lock:
+        if cert_id in state.alerted_certificates:
+            return False
+        if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
+            state.clear_alerted_certificates()
+        state.alerted_certificates.add(cert_id)
+        return True
 
 
 async def report_stats() -> None:
@@ -245,7 +268,7 @@ def _finalize_alert(
 def _handle_known_attacker(
     domain: str,
     all_domains: List[str],
-    cert_id: int,
+    cert_id: str,
     not_before: float | None,
     certkit_url: str | None = None,
     sha256: str | None = None,
@@ -256,15 +279,9 @@ def _handle_known_attacker(
     matched_keywords: List[str] | None = None,
 ) -> bool:
     """Handle known attacker domain detection. Returns True if alert was sent."""
-    with state.lock:
-        if domain in state.alerted_domains:
-            return False
-        if len(state.alerted_domains) > ALERTED_DOMAINS_LIMIT:
-            state.clear_alerted_domains()
-        state.alerted_domains.add(domain)
-        if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
-            state.clear_alerted_certificates()
-        state.alerted_certificates.add(cert_id)
+    if not _claim_certificate(cert_id):
+        log(f"[~] Skipping {domain} (certificate already alerted)")
+        return False
 
     # Get nameserver and registrar info
     is_cloudflare, nameservers_list = get_nameservers(domain)
@@ -320,7 +337,7 @@ def _handle_known_attacker(
 def _handle_pattern_match(
     domain: str,
     all_domains: List[str],
-    cert_id: int,
+    cert_id: str,
     not_before: float | None,
     certkit_url: str | None = None,
     sha256: str | None = None,
@@ -328,13 +345,6 @@ def _handle_pattern_match(
     api_ids: List[str] | None = None,
 ) -> bool:
     """Handle pattern match detection. Returns True if alert was sent."""
-    with state.lock:
-        if domain in state.alerted_domains:
-            return False
-        if len(state.alerted_domains) > ALERTED_DOMAINS_LIMIT:
-            state.clear_alerted_domains()
-        state.alerted_domains.add(domain)
-
     log(f"[+] Potential match: {domain}")
 
     # Only alert if multiple domains in certificate
@@ -375,6 +385,10 @@ def _handle_pattern_match(
         log(f"[~] Skipping {domain} (low confidence - no alert)")
         return False
 
+    if not _claim_certificate(cert_id):
+        log(f"[~] Skipping {domain} (certificate already alerted)")
+        return False
+
     # High confidence confirmed — now track IPs
     track_resolved_ips(all_ips, non_cdn_ips, domain)
 
@@ -398,11 +412,6 @@ def _handle_pattern_match(
         )
     elif is_cloudflare and is_8char_hex:
         log("    -> 8-char hex + Cloudflare nameservers")
-
-    with state.lock:
-        if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
-            state.clear_alerted_certificates()
-        state.alerted_certificates.add(cert_id)
 
     _finalize_alert(
         domain=domain,
@@ -429,7 +438,7 @@ def _handle_pattern_match(
 def _handle_keyword_match(
     domain: str,
     all_domains: List[str],
-    cert_id: int,
+    cert_id: str,
     not_before: float | None,
     keyword: str,
     keyword_match_domains: List[str],
@@ -443,13 +452,6 @@ def _handle_keyword_match(
     Only alerts when a confirmed attacker IP match is found, to keep
     false positives under control for targets that don't use Duo.
     """
-    with state.lock:
-        if domain in state.alerted_domains:
-            return False
-        if len(state.alerted_domains) > ALERTED_DOMAINS_LIMIT:
-            state.clear_alerted_domains()
-        state.alerted_domains.add(domain)
-
     target_info = state.keyword_targets.get(keyword)
     if not target_info:
         log(f"[~] Skipping keyword '{keyword}' (not in keyword_targets)")
@@ -473,17 +475,16 @@ def _handle_keyword_match(
         )
         return False
 
+    if not _claim_certificate(cert_id):
+        log(f"[~] Skipping {domain} (certificate already alerted)")
+        return False
+
     track_resolved_ips(all_ips, non_cdn_ips, domain)
     log(
         f"[!] ALERT [KEYWORD]: {domain} ({keyword} -> {target_info['name']})"
         f" — escalated via attacker IP match:"
         f" {', '.join(confirmed_attacker_ip_matches)}"
     )
-
-    with state.lock:
-        if len(state.alerted_certificates) > ALERTED_CERTIFICATES_LIMIT:
-            state.clear_alerted_certificates()
-        state.alerted_certificates.add(cert_id)
 
     _finalize_alert(
         domain=domain,
@@ -529,27 +530,21 @@ def process_message(message_str: str) -> None:
         if not all_domains:
             return
 
-        # Create unique certificate identifier
-        cert_id = hash(tuple(sorted(d.strip().lower() for d in all_domains)))
+        # Create unique certificate identifier (issuer + serial)
+        cert_id = _certificate_id(leaf_cert)
+        if cert_id is None:
+            log("[!] Skipping certificate without serial number")
+            return
 
         sha256 = leaf_cert.get("sha256")
         serial_number = leaf_cert.get("serial_number")
+        not_before = leaf_cert.get("not_before")
         certkit_url = _build_certkit_url(sha256, serial_number)
 
         # Check if already processed
         with state.lock:
             if cert_id in state.alerted_certificates:
                 return
-
-        # Check certificate age
-        not_before = leaf_cert.get("not_before")
-        if not_before:
-            try:
-                cert_age_seconds = time.time() - not_before
-                if cert_age_seconds > MAX_CERT_AGE_SECONDS:
-                    return
-            except (ValueError, TypeError):
-                pass
 
         # Update stats
         state.increment_cert_count()
@@ -562,13 +557,6 @@ def process_message(message_str: str) -> None:
         for d in all_domains:
             try:
                 domain = d.strip().lower()
-
-                with state.lock:
-                    if domain in state.seen_domains:
-                        continue
-                    if len(state.seen_domains) > SEEN_DOMAINS_LIMIT:
-                        state.clear_seen_domains()
-                    state.seen_domains.add(domain)
 
                 if is_known_attacker_domain(domain, state.known_attacker_domains):
                     known_attacker_domains.append(domain)

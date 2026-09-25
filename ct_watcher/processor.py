@@ -11,6 +11,7 @@ from typing import Dict, List
 from .config import (
     DOMAIN_REGEX,
     ALERTED_CERTIFICATES_LIMIT,
+    MAX_CERT_AGE_SECONDS,
     DISCORD_WEBHOOK,
     DISCORD_WEBHOOK_WATCHED,
     APPRISE_URLS,
@@ -545,6 +546,19 @@ def process_message(message_str: str) -> None:
         with state.lock:
             if cert_id in state.alerted_certificates:
                 return
+
+        # Certificate freshness guard -- do not remove.
+        # Some CT logs lag behind or re-emit older certificates, and the
+        # in-memory dedup set starts empty after a restart, so stale certs
+        # can arrive looking new and fire alerts (seen with month-old
+        # certs). Let's Encrypt backdates notBefore by ~1 hour, so
+        # MAX_CERT_AGE_SECONDS (2h) clears that plus log lag while still
+        # rejecting genuinely old certificates.
+        if not isinstance(not_before, (int, float)):
+            log(f"[!] Skipping certificate with invalid not_before: {not_before!r}")
+            return
+        if time.time() - not_before > MAX_CERT_AGE_SECONDS:
+            return
 
         # Update stats
         state.increment_cert_count()

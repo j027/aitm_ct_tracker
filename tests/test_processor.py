@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import threading
@@ -6,6 +7,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from ct_watcher import state
+from ct_watcher.config import MAX_CERT_AGE_SECONDS
 from ct_watcher.email_sender import EmailSendStatus
 from ct_watcher.processor import (
     _build_certkit_url,
@@ -14,6 +16,7 @@ from ct_watcher.processor import (
     _finalize_alert,
     _handle_known_attacker,
     _handle_pattern_match,
+    process_message,
 )
 
 _EMPTY_SHA256 = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
@@ -269,3 +272,56 @@ class TestHandlerCertificateDedup:
         assert first is True
         assert second is False
         assert finalize.call_count == 1
+
+
+class TestCertificateAgeGuard:
+    NOW = 1_700_000_000.0
+
+    def _message(self, not_before, serial="ABCDEF"):
+        leaf_cert = {
+            "all_domains": ["evil-known.test"],
+            "issuer": {"aggregated": "/C=US/O=Test/CN=Test"},
+            "serial_number": serial,
+        }
+        if not_before is not None:
+            leaf_cert["not_before"] = not_before
+        return json.dumps({"message_type": "certificate_update", "data": {"leaf_cert": leaf_cert}})
+
+    def _run(self, message):
+        state.state.alerted_certificates.clear()
+        state.state.cert_count = 0
+        with (
+            patch("ct_watcher.processor.time.time", return_value=self.NOW),
+            patch("ct_watcher.processor.is_known_attacker_domain", return_value=True),
+            patch("ct_watcher.processor._handle_known_attacker") as handler,
+            patch("ct_watcher.processor.log") as log,
+        ):
+            process_message(message)
+        return handler, log
+
+    def test_fresh_certificate_alerts_and_counts(self):
+        handler, _ = self._run(self._message(self.NOW - 300, serial="FRESH"))
+        assert handler.call_count == 1
+        assert state.state.cert_count == 1
+
+    def test_stale_certificate_skipped_without_counting(self):
+        handler, _ = self._run(self._message(self.NOW - MAX_CERT_AGE_SECONDS - 1, serial="STALE"))
+        assert handler.call_count == 0
+        assert state.state.cert_count == 0
+
+    def test_boundary_certificate_alerts(self):
+        handler, _ = self._run(self._message(self.NOW - MAX_CERT_AGE_SECONDS, serial="BOUNDARY"))
+        assert handler.call_count == 1
+        assert state.state.cert_count == 1
+
+    def test_missing_not_before_skipped_with_log(self):
+        handler, log = self._run(self._message(None, serial="MISSING"))
+        assert handler.call_count == 0
+        assert state.state.cert_count == 0
+        assert any("invalid not_before" in str(call.args[0]) for call in log.call_args_list)
+
+    def test_malformed_not_before_skipped_with_log(self):
+        handler, log = self._run(self._message("not-a-timestamp", serial="MALFORMED"))
+        assert handler.call_count == 0
+        assert state.state.cert_count == 0
+        assert any("invalid not_before" in str(call.args[0]) for call in log.call_args_list)

@@ -371,6 +371,13 @@ COMMON_WORDS_8CHAR = frozenset(
 # multi-log duplicate arrival window many times over.
 ALERTED_CERTIFICATES_LIMIT = 10000
 
+# Maximum certificate age for alerting (2 hours). Some CT logs lag
+# behind or re-emit older certificates, which can otherwise alert after
+# a restart when the dedup set is empty. Let's Encrypt backdates
+# notBefore by ~1 hour; 2 hours gives a safe buffer for that plus CT
+# log/indexing lag.
+MAX_CERT_AGE_SECONDS = 7200
+
 # File paths
 ATTACKER_IPS_FILE = "attacker_ips.json"
 KNOWN_IPS_FILE = "known_ips.txt"

@@ -33,6 +33,7 @@ from .models import AlertInfo
 from .utils import (
     extract_target_id,
     find_matching_keywords,
+    is_base_domain_only_cert,
     is_common_word_id,
     ids_for_target,
     match_keyword_targets,
@@ -595,6 +596,22 @@ def process_message(message_str: str) -> None:
         all_api_ids = sorted(matched_patterns.keys())
 
         if known_attacker_domains:
+            # Auto-generated base-domain certificates (Cloudflare Universal
+            # SSL, registrar/CDN parking) for known attacker domains contain
+            # only the apex, www., and *. forms — no target subdomain and
+            # nothing actionable. Claim the certificate so precert/final and
+            # multi-log retransmissions stay silent, then log a single line
+            # as a canary: repeated or new-serial appearances indicate a
+            # change in attacker behavior worth investigating.
+            if is_base_domain_only_cert(all_domains):
+                if _claim_certificate(cert_id):
+                    log(
+                        f"[~] Skipping auto-generated base-domain certificate for"
+                        f" known attacker domain: {all_domains[0]}"
+                        f" ({len(all_domains)} SAN(s))"
+                    )
+                return
+
             # If any known-attacker domain also matched a keyword, enrich
             # the alert so target_info is populated correctly.
             first_domain = known_attacker_domains[0]

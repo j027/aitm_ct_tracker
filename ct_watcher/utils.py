@@ -209,6 +209,32 @@ def get_base_domain(domain: str) -> str:
     return domain
 
 
+def is_base_domain_only_cert(all_domains: List[str]) -> bool:
+    """Return True when every SAN is only its registrable base domain.
+
+    A SAN qualifies when, after dropping one leading ``*.`` and one leading
+    ``www.``, it equals its own registrable base domain. This is the shape of
+    certificates auto-issued by CDNs and registrars/registrar parking
+    (Cloudflare Universal SSL, GoDaddy/Afternic/Hostinger parking certs,
+    registrar bulk-parking certs). Such certificates never carry
+    target-specific subdomains and are pure noise for phishing detection.
+
+    Returns False as soon as any SAN contains a real subdomain
+    (e.g. ``api-12345678.example.com`` or ``blog.example.com``).
+    """
+    hosts: List[str] = []
+    for raw in all_domains:
+        host = raw.strip().lower()
+        if host.startswith("*."):
+            host = host[2:]
+        if host.startswith("www."):
+            host = host[4:]
+        if not host:
+            return False
+        hosts.append(host)
+    return bool(hosts) and all(host == get_base_domain(host) for host in hosts)
+
+
 def calculate_freshness(cert_timestamp: float | None, fmt: str = "discord") -> str:
     """Calculate certificate freshness string.
 

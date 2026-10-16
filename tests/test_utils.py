@@ -6,7 +6,12 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ct_watcher.utils import build_identifier_text, calculate_freshness, get_base_domain
+from ct_watcher.utils import (
+    build_identifier_text,
+    calculate_freshness,
+    get_base_domain,
+    is_base_domain_only_cert,
+)
 
 
 class TestCalculateFreshness:
@@ -64,6 +69,59 @@ class TestBaseDomain:
     def test_shared_hosting_platform(self):
         assert get_base_domain("myapp.azurewebsites.net") == "azurewebsites.net"
         assert get_base_domain("www.myapp.azurewebsites.net") == "azurewebsites.net"
+
+
+class TestIsBaseDomainOnlyCert:
+    """Tests for the auto-generated base-domain certificate filter."""
+
+    def test_single_apex(self):
+        assert is_base_domain_only_cert(["example.com"])
+
+    def test_wildcard_and_apex(self):
+        assert is_base_domain_only_cert(["*.example.com", "example.com"])
+        assert is_base_domain_only_cert(["example.es", "*.example.es"])
+
+    def test_apex_and_www(self):
+        assert is_base_domain_only_cert(["example.com", "www.example.com"])
+
+    def test_www_only(self):
+        assert is_base_domain_only_cert(["www.example.com"])
+
+    def test_wildcard_only(self):
+        assert is_base_domain_only_cert(["*.example.com"])
+
+    def test_normalizes_case_and_whitespace(self):
+        assert is_base_domain_only_cert(["  WWW.Example.COM  "])
+
+    def test_multi_part_tld(self):
+        assert is_base_domain_only_cert(["*.example.co.uk", "example.co.uk"])
+
+    def test_bulk_parking_multiple_apexes(self):
+        assert is_base_domain_only_cert(["example.com", "example.net", "example.org"])
+
+    def test_api_subdomain_not_filtered(self):
+        assert not is_base_domain_only_cert(["api-1234abcd.example.com", "auth.example.com"])
+
+    def test_single_custom_subdomain_not_filtered(self):
+        assert not is_base_domain_only_cert(["blog.example.com"])
+
+    def test_mail_subdomain_not_filtered(self):
+        assert not is_base_domain_only_cert(["www.example.com", "mail.example.com"])
+
+    def test_m_prefix_not_filtered(self):
+        assert not is_base_domain_only_cert(["m.example.com", "m.example.org"])
+
+    def test_mixed_base_and_target_subdomain_not_filtered(self):
+        assert not is_base_domain_only_cert(
+            [
+                "example.com",
+                "*.example.com",
+                "api-1234abcd.x.example.com",
+            ]
+        )
+
+    def test_empty_list_not_filtered(self):
+        assert not is_base_domain_only_cert([])
 
 
 class TestBuildIdentifierText:

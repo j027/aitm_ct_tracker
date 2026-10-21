@@ -3,7 +3,7 @@
 import json
 import os
 import ipaddress
-from typing import Dict, Set, Any
+from typing import Dict, List, Optional, Set, Any
 
 from .config import (
     KNOWN_DOMAINS_FILE,
@@ -56,6 +56,47 @@ def load_known_attacker_domains(filepath: str = KNOWN_DOMAINS_FILE) -> Set[str]:
     return domains
 
 
+def _normalize_exclude_domains(target_key: str, value: Dict[str, Any]) -> List[str]:
+    """Validate and normalize a target's ``exclude_domains`` suffix list."""
+    if "exclude_domains" not in value:
+        return []
+
+    raw = value["exclude_domains"]
+    if not isinstance(raw, list):
+        raise ValueError(f"{target_key}: exclude_domains must be a list")
+
+    normalized: List[str] = []
+    for entry in raw:
+        if not isinstance(entry, str):
+            raise ValueError(f"{target_key}: exclude_domains entries must be strings")
+
+        domain = entry.strip().lower().rstrip(".")
+        if not domain:
+            raise ValueError(f"{target_key}: exclude_domains contains an empty entry")
+        if domain.startswith(".") or "*" in domain or "/" in domain or ":" in domain:
+            raise ValueError(f"{target_key}: invalid exclude_domains entry {entry!r}")
+        if any(c.isspace() for c in domain):
+            raise ValueError(f"{target_key}: invalid exclude_domains entry {entry!r}")
+        if domain not in normalized:
+            normalized.append(domain)
+
+    return normalized
+
+
+def _validate_keywords(target_key: str, value: Dict[str, Any]) -> Optional[List[str]]:
+    """Validate ``keywords`` when present. Returns None when omitted."""
+    if "keywords" not in value:
+        return None
+
+    keywords = value["keywords"]
+    if not isinstance(keywords, list) or not keywords:
+        raise ValueError(f"{target_key}: keywords must be a non-empty list")
+    if any(not isinstance(k, str) or not k.strip() for k in keywords):
+        raise ValueError(f"{target_key}: keywords entries must be non-empty strings")
+
+    return [k.strip() for k in keywords]
+
+
 def load_target_mapping(
     filepath: str = TARGETS_FILE,
 ) -> tuple[Dict[str, Dict[str, str]], Dict[str, Dict[str, Any]]]:
@@ -68,12 +109,17 @@ def load_target_mapping(
 
     Duo format::
 
-        {"hex_id": {"name": "Org Name", "email": "email@example.com"}}
+        {"hex_id": {"name": "Org Name", "email": "email@example.com",
+         "keywords": ["word1"], "exclude_domains": ["example.edu"]}}
 
     Keyword format::
 
         {"keyword_id": {"type": "keyword", "name": "Org Name",
-         "email": "email@example.com", "keywords": ["word1", "word2"]}}
+         "email": "email@example.com", "keywords": ["word1", "word2"],
+         "exclude_domains": ["example.edu"]}}
+
+    ``exclude_domains`` is only valid for targets with keywords. It lists
+    domain suffixes whose keyword matches should be ignored.
     """
     duo_targets: Dict[str, Dict[str, str]] = {}
     keyword_targets: Dict[str, Dict[str, Any]] = {}
@@ -85,30 +131,47 @@ def load_target_mapping(
     try:
         with open(filepath, "r") as f:
             mapping: Dict[str, Dict[str, Any]] = json.load(f)
-
-        duo_count = 0
-        kw_count = 0
-        for key, value in mapping.items():
-            if value.get("type") == "keyword":
-                keyword_targets[key] = value
-                kw_count += 1
-            else:
-                duo_targets[key] = {k: v for k, v in value.items() if k != "type"}
-                duo_count += 1
-                keywords = value.get("keywords", [])
-                if keywords:
-                    kw_key = keywords[0]
-                    if kw_key not in keyword_targets:
-                        keyword_targets[kw_key] = {
-                            "type": "keyword",
-                            "name": value["name"],
-                            "email": value.get("email", ""),
-                            "keywords": keywords,
-                        }
-
-        log(f"[*] Loaded {duo_count} Duo + {kw_count} keyword targets ({len(mapping)} total)")
     except Exception as e:
         log(f"[!] Error loading targets: {e}")
+        return duo_targets, keyword_targets
+
+    if not isinstance(mapping, dict):
+        raise ValueError(f"{filepath}: targets file must contain a JSON object")
+
+    duo_count = 0
+    kw_count = 0
+    for key, value in mapping.items():
+        if not isinstance(value, dict):
+            raise ValueError(f"{key}: target entry must be an object")
+
+        excludes = _normalize_exclude_domains(key, value)
+        keywords = _validate_keywords(key, value)
+
+        if value.get("type") == "keyword":
+            if keywords is not None:
+                value["keywords"] = keywords
+            value["exclude_domains"] = excludes
+            keyword_targets[key] = value
+            kw_count += 1
+            continue
+
+        duo_targets[key] = {k: v for k, v in value.items() if k != "type"}
+        duo_count += 1
+
+        if keywords:
+            kw_key = keywords[0]
+            if kw_key not in keyword_targets:
+                keyword_targets[kw_key] = {
+                    "type": "keyword",
+                    "name": value["name"],
+                    "email": value.get("email", ""),
+                    "keywords": keywords,
+                    "exclude_domains": excludes,
+                }
+        elif excludes:
+            raise ValueError(f"{key}: exclude_domains requires keywords")
+
+    log(f"[*] Loaded {duo_count} Duo + {kw_count} keyword targets ({len(mapping)} total)")
 
     return duo_targets, keyword_targets
 

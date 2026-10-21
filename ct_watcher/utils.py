@@ -91,6 +91,20 @@ def ids_for_target(
     return [a for a in api_ids if target_mapping.get(a, {}).get("email") == target_email]
 
 
+def is_domain_excluded(domain: str, exclude_domains: List[str]) -> bool:
+    """Return True if domain equals or is a subdomain of an excluded suffix.
+
+    ``example.edu`` matches ``example.edu`` and ``*.example.edu`` but not
+    ``notexample.edu`` or ``example.edu.evil.com``.
+    """
+    d = domain.strip().lower().rstrip(".")
+    for suffix in exclude_domains:
+        s = suffix.strip().lower().rstrip(".")
+        if d == s or d.endswith("." + s):
+            return True
+    return False
+
+
 def match_keyword_targets(
     all_domains: List[str],
     keyword_targets: Dict[str, Dict],
@@ -98,7 +112,8 @@ def match_keyword_targets(
     """Scan certificate domains for keyword-target matches.
 
     For each domain split by ``.``, each subdomain part is checked for
-    each keyword (case-insensitive substring match).
+    each keyword (case-insensitive substring match). Domains matching a
+    target's ``exclude_domains`` suffix list are skipped.
 
     Returns:
         ``{keyword_id: [matching_domain, ...]}`` for targets with at
@@ -111,8 +126,11 @@ def match_keyword_targets(
         parts = d.split(".")
         for kw_id, target in keyword_targets.items():
             keywords = target.get("keywords", [kw_id])
-            if _matching_keywords_in_parts(parts, keywords):
-                results.setdefault(kw_id, []).append(d)
+            if not _matching_keywords_in_parts(parts, keywords):
+                continue
+            if is_domain_excluded(d, target.get("exclude_domains", [])):
+                continue
+            results.setdefault(kw_id, []).append(d)
 
     return results
 

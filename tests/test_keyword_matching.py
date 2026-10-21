@@ -150,3 +150,73 @@ class TestMatchKeywordTargets:
         }
         result = match_keyword_targets(domains, kt)
         assert result == {}
+
+
+class TestKeywordExclusions:
+    @staticmethod
+    def _targets():
+        return {
+            "example": {
+                "type": "keyword",
+                "name": "Example Org",
+                "email": "contact@example.edu",
+                "keywords": ["acme"],
+                "exclude_domains": ["example.edu"],
+            }
+        }
+
+    def test_excludes_apex_and_subdomains(self):
+        for domain in (
+            "acme.example.edu",
+            "acme-test.example.edu",
+            "acme.it-prod-webhosting.aws.example.edu",
+            "ACME.EXAMPLE.EDU",
+            "acme.example.edu.",
+        ):
+            assert match_keyword_targets([domain], self._targets()) == {}, domain
+
+    def test_does_not_exclude_lookalike_domains(self):
+        for domain in (
+            "acme.notexample.edu",
+            "acme.example.edu.evil.com",
+            "acme.evilexample.edu",
+        ):
+            result = match_keyword_targets([domain], self._targets())
+            assert result["example"] == [domain], domain
+
+    def test_excludes_only_matching_domain_in_mixed_certificate(self):
+        result = match_keyword_targets(
+            ["acme.example.edu", "acme.evil.com"],
+            self._targets(),
+        )
+        assert result["example"] == ["acme.evil.com"]
+
+    def test_exclusions_are_per_target(self):
+        targets = {
+            "example": self._targets()["example"],
+            "other": {
+                "type": "keyword",
+                "name": "Other Org",
+                "email": "x@example.com",
+                "keywords": ["acme"],
+            },
+        }
+        result = match_keyword_targets(["acme.example.edu"], targets)
+        assert "example" not in result
+        assert result["other"] == ["acme.example.edu"]
+
+    def test_default_substring_matches_longer_variant(self):
+        result = match_keyword_targets(["acmecorp.evil.com"], self._targets())
+        assert result["example"] == ["acmecorp.evil.com"]
+
+    def test_absent_exclusions_do_not_filter(self):
+        targets = {
+            "example": {
+                "type": "keyword",
+                "name": "Example Org",
+                "email": "alerts@example.edu",
+                "keywords": ["acme"],
+            }
+        }
+        result = match_keyword_targets(["acme.example.edu"], targets)
+        assert result["example"] == ["acme.example.edu"]

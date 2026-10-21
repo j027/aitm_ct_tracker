@@ -31,7 +31,8 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
     "type": "keyword",
     "name": "<university name>",
     "email": "<university email>",
-    "keywords": ["<keyword1>", "<keyword2>"]
+    "keywords": ["<keyword1>", "<keyword2>"],
+    "exclude_domains": ["example.edu"]
   }
 }
 ```
@@ -42,7 +43,8 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
   "<duo id>": {
     "name": "<university name>",
     "email": "<university email>",
-    "keywords": ["<keyword1>", "<keyword2>"]
+    "keywords": ["<keyword1>", "<keyword2>"],
+    "exclude_domains": ["example.edu"]
   }
 }
 ```
@@ -50,6 +52,7 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
 
 - `type` must be `"keyword"` (Duo entries don't need this field — backwards compatible).
 - `keywords` is a list of strings to match as substrings within subdomain parts (case-insensitive). If omitted, the JSON key itself is used as the keyword.
+- `exclude_domains` is an optional list of domain suffixes whose keyword matches should be ignored. It only affects keyword matching; Duo ID/pattern detection and known-attacker detection are unaffected. `example.edu` matches `example.edu` and `*.example.edu`, but not `notexample.edu` or `example.edu.evil.com`.
 
 ## Usage
 1. Clone the repository and navigate to the project directory.

@@ -14,24 +14,24 @@ class TestCheckDuoHostnames:
     def test_invalid_when_a_records_match_baseline(self, mock_resolve):
         mock_resolve.side_effect = lambda host: {
             DUO_INVALID_HOSTNAME: ["54.241.191.167"],
-            "api-3dse1.duosecurity.com": ["54.241.191.167"],
+            "api-abcde.duosecurity.com": ["54.241.191.167"],
         }[host]
 
-        result = check_duo_hostnames(["3dse1"])
+        result = check_duo_hostnames(["abcde"])
 
-        assert result["3dse1"].status == "invalid"
-        assert result["3dse1"].a_records == ["54.241.191.167"]
+        assert result["abcde"].status == "invalid"
+        assert result["abcde"].a_records == ["54.241.191.167"]
 
     @patch("ct_watcher.domain_checks.resolve_a")
     def test_valid_when_a_records_differ(self, mock_resolve):
         mock_resolve.side_effect = lambda host: {
             DUO_INVALID_HOSTNAME: ["54.241.191.167"],
-            "api-268194b0.duosecurity.com": ["3.145.240.61", "3.145.240.91"],
+            "api-fghij.duosecurity.com": ["3.145.240.61", "3.145.240.91"],
         }[host]
 
-        result = check_duo_hostnames(["268194b0"])
+        result = check_duo_hostnames(["fghij"])
 
-        assert result["268194b0"].status == "valid"
+        assert result["fghij"].status == "valid"
 
     @patch("ct_watcher.domain_checks.resolve_a")
     def test_set_comparison_ignores_record_order(self, mock_resolve):
@@ -100,55 +100,55 @@ class TestCheckDuoHostnames:
 class TestFormatDuoIds:
     def test_appends_status_for_multiple_ids(self):
         checks = {
-            "3dse1": DuoCheckResult("invalid", ["54.241.191.167"]),
-            "529aed63": DuoCheckResult("valid", ["3.145.240.61"]),
+            "abcde": DuoCheckResult("invalid", ["54.241.191.167"]),
+            "fghij": DuoCheckResult("valid", ["3.145.240.61"]),
         }
 
         duo_str, targets_str = format_duo_ids(
-            ["3dse1", "529aed63"],
-            {"529aed63": {"name": "UCSB", "email": "security@ucsb.edu"}},
+            ["abcde", "fghij"],
+            {"fghij": {"name": "Example University", "email": "security@example.edu"}},
             checks,
         )
 
-        assert "`3dse1` — ❌ invalid Duo" in duo_str
-        assert "`529aed63` — ✅ valid Duo" in duo_str
-        assert targets_str == "(unknown), UCSB"
+        assert "`abcde` — ❌ invalid Duo" in duo_str
+        assert "`fghij` — ✅ valid Duo" in duo_str
+        assert targets_str == "(unknown), Example University"
 
     def test_appends_status_for_single_id(self):
-        checks = {"529aed63": DuoCheckResult("valid", ["3.145.240.61"])}
+        checks = {"fghij": DuoCheckResult("valid", ["3.145.240.61"])}
 
-        duo_str, targets_str = format_duo_ids(["529aed63"], {}, checks)
+        duo_str, targets_str = format_duo_ids(["fghij"], {}, checks)
 
-        assert duo_str == "`529aed63` — ✅ valid Duo"
+        assert duo_str == "`fghij` — ✅ valid Duo"
         assert targets_str is None
 
     def test_without_checks_is_unchanged(self):
-        duo_str, targets_str = format_duo_ids(["529aed63"], {}, None)
+        duo_str, targets_str = format_duo_ids(["fghij"], {}, None)
 
-        assert duo_str == "`529aed63`"
+        assert duo_str == "`fghij`"
         assert targets_str is None
 
 
 class TestFormatDuoCheckLines:
     def test_invalid_and_unknown_details(self):
         checks = {
-            "3dse1": DuoCheckResult("invalid", ["54.241.191.167"]),
-            "abcde": DuoCheckResult("unknown", []),
-            "529aed63": DuoCheckResult("valid", ["3.145.240.61"]),
+            "abcde": DuoCheckResult("invalid", ["54.241.191.167"]),
+            "klmno": DuoCheckResult("unknown", []),
+            "fghij": DuoCheckResult("valid", ["3.145.240.61"]),
         }
 
-        lines = format_duo_check_lines(["3dse1", "abcde", "529aed63"], checks)
+        lines = format_duo_check_lines(["abcde", "klmno", "fghij"], checks)
 
         assert lines is not None
-        assert "❌ `api-3dse1.duosecurity.com` → `54.241.191.167`" in lines
-        assert "❔ `api-abcde.duosecurity.com` — DNS lookup failed" in lines
-        assert "api-529aed63.duosecurity.com" not in lines
+        assert "❌ `api-abcde.duosecurity.com` → `54.241.191.167`" in lines
+        assert "❔ `api-klmno.duosecurity.com` — DNS lookup failed" in lines
+        assert "api-fghij.duosecurity.com" not in lines
         assert "known-invalid wildcard" in lines
 
     def test_valid_only_returns_none(self):
-        checks = {"529aed63": DuoCheckResult("valid", ["3.145.240.61"])}
+        checks = {"fghij": DuoCheckResult("valid", ["3.145.240.61"])}
 
-        assert format_duo_check_lines(["529aed63"], checks) is None
+        assert format_duo_check_lines(["fghij"], checks) is None
 
     def test_details_are_capped(self):
         api_ids = [f"id{i:03d}" for i in range(12)]

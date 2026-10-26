@@ -15,7 +15,7 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan State",
+                "name": "Example University",
                 "email": "x@x.com",
                 "keywords": ["morgan"],
             }
@@ -33,7 +33,7 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan State",
+                "name": "Example University",
                 "email": "x@x.com",
                 "keywords": ["morgan", "mailladfmro"],
             }
@@ -61,7 +61,7 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan State",
+                "name": "Example University",
                 "email": "x@x.com",
                 "keywords": ["MORGAN"],
             }
@@ -74,7 +74,7 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan State",
+                "name": "Example University",
                 "email": "x@x.com",
                 "keywords": ["morgan"],
             }
@@ -87,7 +87,7 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan State",
+                "name": "Example University",
                 "email": "x@x.com",
             }
         }
@@ -102,13 +102,13 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan State",
+                "name": "Example University",
                 "email": "x@x.com",
                 "keywords": ["morgan"],
             },
             "csffd": {
                 "type": "keyword",
-                "name": "Cal State Fullerton",
+                "name": "Other University",
                 "email": "y@y.com",
                 "keywords": ["csffd", "csffdcale"],
             },
@@ -130,7 +130,7 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan",
+                "name": "Example University",
                 "email": "x@x.com",
                 "keywords": ["morgan"],
             }
@@ -143,7 +143,7 @@ class TestMatchKeywordTargets:
         kt = {
             "morgan": {
                 "type": "keyword",
-                "name": "Morgan",
+                "name": "Example University",
                 "email": "x@x.com",
                 "keywords": ["morgan"],
             }

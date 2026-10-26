@@ -41,7 +41,7 @@ def is_common_word_id(api_id: str | None) -> bool:
 
     api_id_lower = api_id.lower()
 
-    # If it contains any digits, it's likely intentional (e.g., 'adm1n', '3dse1')
+    # If it contains any digits, it's likely intentional (e.g., 'adm1n')
     # These should NOT be filtered - they look like target IDs
     if any(c.isdigit() for c in api_id_lower):
         return False

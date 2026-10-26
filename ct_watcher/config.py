@@ -72,9 +72,10 @@ EMAIL_SUBJECT = os.environ.get(
 
 
 # Domain pattern matching
-# Match api-<ID>. where:
-#   - 5-char IDs are alphanumeric (e.g., 3dse1 for RIT)
-#   - 8-char IDs are alphanumeric (e.g., 529aed63 for UCSB, 62a1edm3 for Morgan State)
+# Match api-<ID>. where the ID is 5-8 alphanumeric characters.
+# Our confirmed-valid Duo IDs are 8-char hex (e.g., 0123abcd).
+# Shorter and non-hex IDs are still matched because attackers fabricate
+# and truncate them (e.g., the 7-char prefix of a real 8-char ID).
 # The ID must be followed by a dot (its own subdomain) to reduce false positives
 # Excludes known cloud/SaaS patterns
 DOMAIN_REGEX = re.compile(

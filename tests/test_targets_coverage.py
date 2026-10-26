@@ -11,9 +11,8 @@ from ct_watcher.utils import extract_target_id, match_keyword_targets
 class TestTargetsCoverage:
     """Regression safety net: every target in targets.json must match the regex.
 
-    This test would have caught the Morgan State bug (62a1edm3) immediately
-    when it was added to targets.json, since the old regex only supported
-    8-char hex IDs, not 8-char alphanumeric IDs.
+    This test would have caught the original regex gap for 8-char alphanumeric
+    IDs, since the old regex only supported 8-char hex IDs.
     """
 
     def test_all_duo_targets_match_regex(self, target_mapping):

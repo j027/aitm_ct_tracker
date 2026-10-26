@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from ct_watcher import state
 from ct_watcher.config import MAX_CERT_AGE_SECONDS
 from ct_watcher.email_sender import EmailSendStatus
+from ct_watcher.models import DuoCheckResult
 from ct_watcher.processor import (
     _build_certkit_url,
     _certificate_id,
@@ -116,6 +117,47 @@ class TestFinalizeAlert:
             assert alert.matched_keywords == ["calcentraltiw"]
         finally:
             state.state.keyword_targets = original_targets
+
+
+class TestFinalizeAlertDuoCheck:
+    def test_duo_checks_are_populated_on_alert(self):
+        with (
+            patch(
+                "ct_watcher.processor.send_automated_target_email",
+                return_value=EmailSendStatus("skipped", "test"),
+            ),
+            patch("ct_watcher.processor._dispatch_alert") as dispatch_alert,
+            patch(
+                "ct_watcher.processor.check_duo_hostnames",
+                return_value={
+                    "abcde": DuoCheckResult("invalid", ["54.241.191.167"]),
+                },
+            ) as check_duo,
+        ):
+            _finalize_alert(
+                domain="api-abcde.evil.example.com",
+                all_domains=["api-abcde.evil.example.com"],
+                not_before=None,
+                is_known_attacker=False,
+                registrar=None,
+                is_cloudflare=False,
+                nameservers_list=None,
+                all_ips=[],
+                non_cdn_ips=[],
+                confirmed_attacker_ip_matches=[],
+                reg_date=None,
+                api_ids=["abcde"],
+                api_id="abcde",
+                certkit_url=None,
+                sha256=None,
+                serial_number=None,
+                matched_keywords=None,
+            )
+
+        check_duo.assert_called_once_with(["abcde"])
+        alert = dispatch_alert.call_args.args[0]
+        assert alert.duo_checks["abcde"].status == "invalid"
+        assert alert.duo_checks["abcde"].a_records == ["54.241.191.167"]
 
 
 class TestCertificateId:

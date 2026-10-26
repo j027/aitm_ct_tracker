@@ -5,7 +5,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from ct_watcher.discord import build_embed, _build_minimal_embed
-from ct_watcher.models import AlertInfo
+from ct_watcher.models import AlertInfo, DuoCheckResult
 
 
 SAMPLE_TARGET = {"name": "Test University", "email": "security@test.edu"}
@@ -189,6 +189,62 @@ class TestDiscordFieldOrdering:
         all_domains_idx = field_names.index("All Domains in Certificate")
         email_status_idx = field_names.index("Email Status")
         assert email_status_idx > all_domains_idx
+
+
+class TestDiscordDuoCheck:
+    """Tests for the advisory Duo hostname status."""
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_invalid_duo_shows_status_and_details(self):
+        embed = build_embed(
+            _make_alert(
+                domain="api-abcde.evil.com",
+                all_domains=["api-abcde.evil.com"],
+                api_ids=["abcde"],
+                duo_checks={
+                    "abcde": DuoCheckResult("invalid", ["54.241.191.167"]),
+                },
+            )
+        )
+
+        duo_field = [f for f in embed["fields"] if f["name"] == "🔑 Duo ID"][0]
+        assert "❌ invalid Duo" in duo_field["value"]
+
+        check_field = [f for f in embed["fields"] if f["name"] == "🔎 Duo Hostname Check"][0]
+        assert "api-abcde.duosecurity.com" in check_field["value"]
+        assert "54.241.191.167" in check_field["value"]
+        assert "known-invalid wildcard" in check_field["value"]
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_valid_duo_has_no_detail_field(self):
+        embed = build_embed(
+            _make_alert(
+                domain="api-abcde.evil.com",
+                all_domains=["api-abcde.evil.com"],
+                api_ids=["abcde"],
+                duo_checks={
+                    "abcde": DuoCheckResult("valid", ["3.145.240.61"]),
+                },
+            )
+        )
+
+        duo_field = [f for f in embed["fields"] if f["name"] == "🔑 Duo ID"][0]
+        assert "✅ valid Duo" in duo_field["value"]
+        assert not [f for f in embed["fields"] if f["name"] == "🔎 Duo Hostname Check"]
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_unknown_duo_shows_lookup_failure(self):
+        embed = build_embed(
+            _make_alert(
+                domain="api-abcde.evil.com",
+                all_domains=["api-abcde.evil.com"],
+                api_ids=["abcde"],
+                duo_checks={"abcde": DuoCheckResult("unknown", [])},
+            )
+        )
+
+        check_field = [f for f in embed["fields"] if f["name"] == "🔎 Duo Hostname Check"][0]
+        assert "DNS lookup failed" in check_field["value"]
 
 
 class TestDiscordEmbedFields:

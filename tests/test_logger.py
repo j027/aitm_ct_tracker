@@ -5,8 +5,8 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ct_watcher.logger import log_alert_to_csv
-from ct_watcher.models import AlertInfo
+from ct_watcher.logger import _COLUMNS, log_alert_to_csv
+from ct_watcher.models import AlertInfo, DuoCheckResult
 
 
 def _make_alert(**overrides):
@@ -61,6 +61,68 @@ class TestCsvLogging:
             assert row["target_email"] == "security@test.edu"
             assert row["is_known_attacker"] == "True"
             assert row["alert_timestamp"] != ""
+            assert row["duo_status"] == ""
+            assert row["duo_a_records"] == ""
+        finally:
+            os.unlink(tmp)
+
+    def test_duo_columns_are_serialized(self):
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv") as f:
+            tmp = f.name
+        try:
+            alert = _make_alert(
+                api_ids=["abcde", "fghij"],
+                duo_checks={
+                    "abcde": DuoCheckResult("invalid", ["1.2.3.4"]),
+                    "fghij": DuoCheckResult("valid", ["5.6.7.8", "9.10.11.12"]),
+                },
+            )
+            log_alert_to_csv(alert, log_path=tmp)
+
+            with open(tmp) as f:
+                reader = csv.DictReader(f)
+                row = next(reader)
+            assert row["duo_status"] == "abcde:invalid|fghij:valid"
+            assert row["duo_a_records"] == "abcde:1.2.3.4|fghij:5.6.7.8+9.10.11.12"
+        finally:
+            os.unlink(tmp)
+
+    def test_stale_header_is_refreshed_and_old_rows_stay_blank(self):
+        # Mirrors the real alerts.csv: a 20-column header with 24-field rows.
+        old_header = _COLUMNS[:20]
+        old_row = [""] * 24
+        old_row[0] = "2024-01-01T00:00:00+00:00"
+        old_row[4] = "old.example.com"
+        old_row[20] = "oldapi"
+        old_row[21] = "oldkeyword"
+        old_row[22] = "oldkeyworddomain"
+        old_row[23] = "oldkeywordmatched"
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".csv", newline="") as f:
+            tmp = f.name
+            writer = csv.writer(f)
+            writer.writerow(old_header)
+            writer.writerow(old_row)
+
+        try:
+            alert = _make_alert(
+                api_ids=["abcde"],
+                duo_checks={"abcde": DuoCheckResult("invalid", ["54.241.191.167"])},
+            )
+            log_alert_to_csv(alert, log_path=tmp)
+
+            with open(tmp, newline="") as f:
+                reader = csv.DictReader(f, restval="")
+                rows = list(reader)
+                fieldnames = reader.fieldnames
+
+            assert fieldnames == _COLUMNS
+            assert rows[0]["domain"] == "old.example.com"
+            assert rows[0]["api_ids"] == "oldapi"
+            assert rows[0]["duo_status"] == ""
+            assert rows[0]["duo_a_records"] == ""
+            assert rows[1]["duo_status"] == "abcde:invalid"
+            assert rows[1]["duo_a_records"] == "abcde:54.241.191.167"
         finally:
             os.unlink(tmp)
 

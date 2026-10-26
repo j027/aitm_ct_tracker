@@ -7,7 +7,12 @@ import apprise
 from .config import APPRISE_URLS, EMAIL_ENABLED
 from .models import AlertInfo
 from .state import state
-from .utils import defang_domain, calculate_freshness, format_duo_ids
+from .utils import (
+    defang_domain,
+    calculate_freshness,
+    format_duo_check_lines,
+    format_duo_ids,
+)
 from .console import log
 
 
@@ -42,12 +47,17 @@ def build_apprise_alert(alert: AlertInfo) -> str:
             kw_block = "\n".join(alert.keyword_match_domains[:20])
             lines.append(f"**Matching Domains:**\n```\n{kw_block}\n```")
     elif alert.api_ids:
-        duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping)
+        duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping, alert.duo_checks)
         if targets_str is not None:
             lines.append(f"**Duo IDs:** {duo_str}")
             lines.append(f"**Targets:** {targets_str}")
         else:
             lines.append(f"**Duo ID:** {duo_str}")
+
+        duo_check_lines = format_duo_check_lines(alert.api_ids, alert.duo_checks)
+        if duo_check_lines:
+            lines.append("**Duo Hostname Check:**")
+            lines.append(duo_check_lines)
 
     lines.append("")
 

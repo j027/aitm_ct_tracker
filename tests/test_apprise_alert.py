@@ -6,7 +6,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from ct_watcher.apprise import build_apprise_alert
-from ct_watcher.models import AlertInfo
+from ct_watcher.models import AlertInfo, DuoCheckResult
 
 
 SAMPLE_TARGET = {"name": "Test University", "email": "security@test.edu"}
@@ -118,6 +118,54 @@ class TestAppriseTargetResolution:
         )
         assert "Target Organization:" not in result
         assert "Hex ID:" not in result
+
+
+class TestAppriseDuoCheck:
+    """Tests for the advisory Duo hostname status."""
+
+    def test_invalid_duo_shows_status_and_details(self):
+        result = build_apprise_alert(
+            _make_alert(
+                domain="api-abcde.evil.com",
+                all_domains=["api-abcde.evil.com"],
+                api_ids=["abcde"],
+                duo_checks={
+                    "abcde": DuoCheckResult("invalid", ["54.241.191.167"]),
+                },
+            )
+        )
+
+        assert "`abcde` — ❌ invalid Duo" in result
+        assert "**Duo Hostname Check:**" in result
+        assert "api-abcde.duosecurity.com" in result
+        assert "54.241.191.167" in result
+
+    def test_valid_duo_has_status_but_no_details(self):
+        result = build_apprise_alert(
+            _make_alert(
+                domain="api-abcde.evil.com",
+                all_domains=["api-abcde.evil.com"],
+                api_ids=["abcde"],
+                duo_checks={
+                    "abcde": DuoCheckResult("valid", ["3.145.240.61"]),
+                },
+            )
+        )
+
+        assert "`abcde` — ✅ valid Duo" in result
+        assert "Duo Hostname Check:" not in result
+
+    def test_unknown_duo_shows_lookup_failure(self):
+        result = build_apprise_alert(
+            _make_alert(
+                domain="api-abcde.evil.com",
+                all_domains=["api-abcde.evil.com"],
+                api_ids=["abcde"],
+                duo_checks={"abcde": DuoCheckResult("unknown", [])},
+            )
+        )
+
+        assert "DNS lookup failed" in result
 
 
 class TestAppriseAlertFields:

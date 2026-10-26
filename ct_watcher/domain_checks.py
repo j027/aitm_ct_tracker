@@ -1,11 +1,44 @@
 """Domain checking functions - nameservers, registrar, attacker domain matching."""
 
-from typing import List, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 from .utils import get_base_domain
-from .dns_resolver import resolve_ns
+from .dns_resolver import resolve_a, resolve_ns
+from .models import DuoCheckResult
 from .rdap import get_domain_info as _rdap_get_domain_info
 from .console import log
+
+DUO_INVALID_HOSTNAME = "api-invalid.duosecurity.com"
+
+
+def check_duo_hostnames(api_ids: List[str]) -> Dict[str, DuoCheckResult]:
+    """Check whether Duo API hostnames are provisioned or match the invalid wildcard.
+
+    Resolves the invalid baseline once per call, then each
+    ``api-<id>.duosecurity.com``. An ID is ``invalid`` when its A-record set
+    matches the baseline exactly, ``valid`` when both resolve to different
+    sets, and ``unknown`` when either lookup returns no A records.
+    """
+    if not api_ids:
+        return {}
+
+    unique_ids = list(dict.fromkeys(api_ids))
+    invalid_ips = set(resolve_a(DUO_INVALID_HOSTNAME))
+    if not invalid_ips:
+        return {api_id: DuoCheckResult(status="unknown", a_records=[]) for api_id in unique_ids}
+
+    results: Dict[str, DuoCheckResult] = {}
+    for api_id in unique_ids:
+        hostname = f"api-{api_id.strip().lower()}.duosecurity.com"
+        a_records = resolve_a(hostname)
+        if not a_records:
+            status = "unknown"
+        elif set(a_records) == invalid_ips:
+            status = "invalid"
+        else:
+            status = "valid"
+        results[api_id] = DuoCheckResult(status=status, a_records=a_records)
+    return results
 
 
 def is_known_attacker_domain(domain: str, known_domains: Set[str]) -> bool:

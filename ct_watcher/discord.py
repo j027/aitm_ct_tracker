@@ -10,7 +10,13 @@ from urllib.parse import quote, urlencode
 from .config import DISCORD_WEBHOOK, EMAIL_ENABLED, EMAIL_SUBJECT
 from .models import AlertInfo
 from .state import state
-from .utils import defang_domain, calculate_freshness, format_duo_ids, ids_for_target
+from .utils import (
+    defang_domain,
+    calculate_freshness,
+    format_duo_check_lines,
+    format_duo_ids,
+    ids_for_target,
+)
 from .console import log
 
 
@@ -356,7 +362,7 @@ def build_embed(
                 }
             )
     elif alert.api_ids:
-        duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping)
+        duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping, alert.duo_checks)
         if targets_str is not None:
             embed["fields"].append(
                 {
@@ -377,6 +383,16 @@ def build_embed(
                 {
                     "name": "🔑 Duo ID",
                     "value": duo_str,
+                    "inline": False,
+                }
+            )
+
+        duo_check_lines = format_duo_check_lines(alert.api_ids, alert.duo_checks)
+        if duo_check_lines:
+            embed["fields"].append(
+                {
+                    "name": "🔎 Duo Hostname Check",
+                    "value": duo_check_lines,
                     "inline": False,
                 }
             )

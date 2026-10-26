@@ -9,6 +9,7 @@ from typing import Dict, List
 from publicsuffixlist import PublicSuffixList
 
 from .config import COMMON_WORDS_5CHAR, COMMON_WORDS_8CHAR, DOMAIN_REGEX
+from .models import DuoCheckResult
 
 
 def defang_domain(domain: str) -> str:
@@ -193,24 +194,80 @@ def build_identifier_text(
     return ""
 
 
+_DUO_STATUS_LABELS = {
+    "valid": "✅ valid Duo",
+    "invalid": "❌ invalid Duo",
+    "unknown": "❔ unknown",
+}
+
+
+def _format_duo_id(api_id: str, duo_checks: Dict[str, DuoCheckResult] | None) -> str:
+    """Format one Duo ID with its advisory status when available."""
+    text = f"`{api_id}`"
+    if duo_checks:
+        check = duo_checks.get(api_id)
+        if check:
+            text += f" — {_DUO_STATUS_LABELS.get(check.status, check.status)}"
+    return text
+
+
 def format_duo_ids(
     api_ids: List[str],
     target_mapping: Dict[str, Dict[str, str]],
+    duo_checks: Dict[str, DuoCheckResult] | None = None,
 ) -> tuple[str, str | None]:
     """Format Duo IDs and target names for display.
 
     Returns a ``(duo_ids_str, targets_str_or_None)`` tuple.
     For a single ID, returns ``("``abc``", None)`` — no paired targets needed.
     For multiple IDs, returns the comma-separated IDs and matching targets.
+    ``duo_checks`` adds the advisory valid/invalid/unknown status.
     """
     if len(api_ids) <= 1:
-        return f"`{api_ids[0]}`" if api_ids else "", None
-    duo_parts = [f"`{aid}`" for aid in api_ids]
+        return _format_duo_id(api_ids[0], duo_checks) if api_ids else "", None
+    duo_parts = [_format_duo_id(aid, duo_checks) for aid in api_ids]
     target_parts = []
     for aid in api_ids:
         ti = target_mapping.get(aid)
         target_parts.append(ti["name"] if ti else "(unknown)")
     return ", ".join(duo_parts), ", ".join(target_parts)
+
+
+_DUO_CHECK_DETAIL_LIMIT = 10
+
+
+def format_duo_check_lines(
+    api_ids: List[str],
+    duo_checks: Dict[str, DuoCheckResult] | None,
+) -> str | None:
+    """Build the advisory detail block for invalid/unknown Duo hostnames."""
+    if not duo_checks:
+        return None
+
+    lines: List[str] = []
+    invalid_count = 0
+    for aid in api_ids:
+        check = duo_checks.get(aid)
+        if not check:
+            continue
+        hostname = f"api-{aid}.duosecurity.com"
+        if check.status == "invalid":
+            records = ", ".join(check.a_records) if check.a_records else "no A record"
+            lines.append(f"❌ `{hostname}` → `{records}`")
+            invalid_count += 1
+        elif check.status == "unknown":
+            lines.append(f"❔ `{hostname}` — DNS lookup failed")
+
+    if not lines:
+        return None
+    if len(lines) > _DUO_CHECK_DETAIL_LIMIT:
+        omitted = len(lines) - _DUO_CHECK_DETAIL_LIMIT
+        lines = lines[:_DUO_CHECK_DETAIL_LIMIT]
+        lines.append(f"... and {omitted} more")
+    if invalid_count:
+        lines.append("")
+        lines.append("Matches the known-invalid wildcard `api-invalid.duosecurity.com`.")
+    return "\n".join(lines)
 
 
 _psl = PublicSuffixList(only_icann=True)

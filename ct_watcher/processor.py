@@ -18,7 +18,13 @@ from .config import (
     APPRISE_URLS_WATCHED,
 )
 from .state import state
-from .domain_checks import is_known_attacker_domain, get_nameservers, get_domain_info
+from .domain_checks import (
+    DUO_INVALID_HOSTNAME,
+    check_duo_hostnames,
+    is_known_attacker_domain,
+    get_nameservers,
+    get_domain_info,
+)
 from .ip_tracking import (
     get_attacker_ips_for_domain,
     resolve_and_classify,
@@ -240,6 +246,16 @@ def _finalize_alert(
     else:
         email_status_state = "skipped"
 
+    duo_checks = check_duo_hostnames(api_ids)
+    for aid, check in duo_checks.items():
+        if check.status == "invalid":
+            log(
+                f"    -> Duo ID {aid}: INVALID Duo hostname"
+                f" (A: {', '.join(check.a_records)}; matches {DUO_INVALID_HOSTNAME})"
+            )
+        elif check.status == "unknown":
+            log(f"    -> Duo ID {aid}: Duo hostname check UNKNOWN (DNS lookup failed)")
+
     alert = AlertInfo(
         domain=domain,
         all_domains=all_domains,
@@ -262,6 +278,7 @@ def _finalize_alert(
         keyword=keyword,
         keyword_match_domains=keyword_match_domains if keyword else None,
         matched_keywords=matched_keywords if keyword else None,
+        duo_checks=duo_checks,
     )
     _dispatch_alert(alert)
     state.increment_alerts_count()

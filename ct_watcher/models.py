@@ -6,6 +6,14 @@ from dataclasses import dataclass, field
 from typing import Dict, List
 
 
+@dataclass(frozen=True)
+class DuoCheckResult:
+    """Result of checking a Duo API hostname against the invalid baseline."""
+
+    status: str
+    a_records: List[str]
+
+
 @dataclass
 class AlertInfo:
     """All data gathered for a single alert, passed to notification channels."""
@@ -31,3 +39,4 @@ class AlertInfo:
     keyword: str | None = None
     keyword_match_domains: List[str] | None = None
     matched_keywords: List[str] | None = None
+    duo_checks: Dict[str, DuoCheckResult] = field(default_factory=dict)

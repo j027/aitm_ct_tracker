@@ -119,6 +119,180 @@ class TestFinalizeAlert:
             state.state.keyword_targets = original_targets
 
 
+class TestFinalizeAlertTargetPrecedence:
+    DUO_A = {"name": "Duo University", "email": "duo@example.edu"}
+    DUO_B = {"name": "Second Duo University", "email": "second@example.edu"}
+    KEYWORD_A = {
+        "type": "keyword",
+        "name": "Keyword University",
+        "email": "keyword@example.edu",
+        "keywords": ["examkeyword"],
+    }
+
+    def setup_method(self):
+        self.original_duo = state.state.target_mapping
+        self.original_keyword = state.state.keyword_targets
+
+    def teardown_method(self):
+        state.state.target_mapping = self.original_duo
+        state.state.keyword_targets = self.original_keyword
+
+    def _run(self, *, api_ids, api_id, keyword=None, matched_keywords=None):
+        with (
+            patch("ct_watcher.processor.send_automated_target_email") as send_email,
+            patch("ct_watcher.processor._dispatch_alert") as dispatch_alert,
+            patch("ct_watcher.processor.check_duo_hostnames", return_value={}),
+        ):
+            send_email.return_value = EmailSendStatus("sent", "test")
+            _finalize_alert(
+                domain="api-abcde.evil.example.com",
+                all_domains=["api-abcde.evil.example.com", "examkeyword.evil.example.com"],
+                not_before=None,
+                is_known_attacker=False,
+                registrar=None,
+                is_cloudflare=False,
+                nameservers_list=None,
+                all_ips=[],
+                non_cdn_ips=[],
+                confirmed_attacker_ip_matches=[],
+                reg_date=None,
+                api_ids=api_ids,
+                api_id=api_id,
+                certkit_url=None,
+                sha256=None,
+                serial_number=None,
+                matched_keywords=matched_keywords,
+                keyword=keyword,
+                keyword_match_domains=["examkeyword.evil.example.com"] if keyword else None,
+            )
+        return send_email, dispatch_alert
+
+    def test_same_org_sends_one_duo_email(self):
+        state.state.target_mapping = {
+            "abcde": {"name": "Example University", "email": "security@example.edu"}
+        }
+        state.state.keyword_targets = {
+            "examkeyword": {
+                "type": "keyword",
+                "name": "Example University",
+                "email": "security@example.edu",
+                "keywords": ["examkeyword"],
+            }
+        }
+
+        send_email, dispatch_alert = self._run(
+            api_ids=["abcde"],
+            api_id="abcde",
+            keyword="examkeyword",
+            matched_keywords=["examkeyword"],
+        )
+
+        assert send_email.call_count == 1
+        call = send_email.call_args
+        assert call.kwargs["target_info"]["email"] == "security@example.edu"
+        assert call.kwargs["target_api_ids"] == ["abcde"]
+        assert call.kwargs.get("keyword") is None
+
+        alert = dispatch_alert.call_args.args[0]
+        assert alert.target_info == {
+            "name": "Example University",
+            "email": "security@example.edu",
+        }
+        assert alert.keyword == "examkeyword"
+        assert alert.matched_keywords == ["examkeyword"]
+
+    def test_different_orgs_send_one_email_each(self):
+        state.state.target_mapping = {"abcde": self.DUO_A}
+        state.state.keyword_targets = {"examkeyword": self.KEYWORD_A}
+
+        send_email, dispatch_alert = self._run(
+            api_ids=["abcde"],
+            api_id="abcde",
+            keyword="examkeyword",
+            matched_keywords=["examkeyword"],
+        )
+
+        assert send_email.call_count == 2
+        duo_call, keyword_call = send_email.call_args_list
+        assert duo_call.kwargs["target_info"] == self.DUO_A
+        assert duo_call.kwargs["target_api_ids"] == ["abcde"]
+        assert duo_call.kwargs.get("keyword") is None
+
+        assert keyword_call.kwargs["target_info"] == self.KEYWORD_A
+        assert keyword_call.kwargs["target_api_ids"] == []
+        assert keyword_call.kwargs["keyword"] == "examkeyword"
+        assert keyword_call.kwargs["matched_keywords"] == ["examkeyword"]
+
+        alert = dispatch_alert.call_args.args[0]
+        assert alert.target_info == self.DUO_A
+
+    def test_unknown_duo_falls_back_to_keyword(self):
+        state.state.target_mapping = {}
+        state.state.keyword_targets = {"examkeyword": self.KEYWORD_A}
+
+        send_email, dispatch_alert = self._run(
+            api_ids=["abcde"],
+            api_id="abcde",
+            keyword="examkeyword",
+            matched_keywords=["examkeyword"],
+        )
+
+        assert send_email.call_count == 1
+        call = send_email.call_args
+        assert call.kwargs["target_info"] == self.KEYWORD_A
+        assert call.kwargs["target_api_ids"] == []
+        assert call.kwargs["keyword"] == "examkeyword"
+
+        alert = dispatch_alert.call_args.args[0]
+        assert alert.target_info == self.KEYWORD_A
+
+    def test_multiple_duo_targets_and_keyword_send_one_per_email(self):
+        state.state.target_mapping = {
+            "abcde": self.DUO_A,
+            "fghij": self.DUO_B,
+        }
+        state.state.keyword_targets = {"examkeyword": self.KEYWORD_A}
+
+        send_email, dispatch_alert = self._run(
+            api_ids=["abcde", "fghij"],
+            api_id="abcde",
+            keyword="examkeyword",
+            matched_keywords=["examkeyword"],
+        )
+
+        assert send_email.call_count == 3
+        calls = send_email.call_args_list
+        assert [c.kwargs["target_info"]["email"] for c in calls] == [
+            "duo@example.edu",
+            "second@example.edu",
+            "keyword@example.edu",
+        ]
+        assert [c.kwargs["target_api_ids"] for c in calls] == [
+            ["abcde"],
+            ["fghij"],
+            [],
+        ]
+
+        alert = dispatch_alert.call_args.args[0]
+        assert alert.target_info == self.DUO_A
+
+    def test_duplicate_duo_email_is_combined_into_one_email(self):
+        state.state.target_mapping = {
+            "abcde": self.DUO_A,
+            "fghij": {
+                "name": "Duplicate Duo University",
+                "email": "duo@example.edu",
+            },
+        }
+
+        send_email, _ = self._run(api_ids=["abcde", "fghij"], api_id="abcde")
+
+        assert send_email.call_count == 1
+        call = send_email.call_args
+        assert call.kwargs["target_info"]["email"] == "duo@example.edu"
+        assert call.kwargs["target_api_ids"] == ["abcde", "fghij"]
+
+
 class TestFinalizeAlertDuoCheck:
     def test_duo_checks_are_populated_on_alert(self):
         with (

@@ -160,71 +160,87 @@ def _finalize_alert(
     ``_handle_keyword_match`` after their handler-specific detection logic
     is complete.
     """
-    # Resolve primary target: keyword targets use keyword_targets, Duo
-    # targets use target_mapping.
-    target_info = None
-    if keyword:
-        if keyword in state.keyword_targets:
-            target_info = state.keyword_targets[keyword]
-            if not api_id:
-                api_id = keyword
-    else:
-        target_info = state.target_mapping.get(api_id) if api_id else None
-        if not target_info and api_ids:
-            for aid in api_ids:
-                if aid in state.target_mapping:
-                    api_id = aid
-                    target_info = state.target_mapping[aid]
-                    break
+    # Resolve targets. Duo is the preferred primary target, but a keyword
+    # match can point at a different organization; email each distinct target
+    # once so mixed Duo/keyword campaigns reach every affected org.
+    keyword_target = state.keyword_targets.get(keyword) if keyword else None
 
-    # Send emails — one per distinct target
+    primary_duo_id = None
+    if api_id and api_id in state.target_mapping:
+        primary_duo_id = api_id
+    else:
+        primary_duo_id = next(
+            (aid for aid in api_ids if aid in state.target_mapping),
+            None,
+        )
+
+    ordered_duo_ids = []
+    if primary_duo_id:
+        ordered_duo_ids.append(primary_duo_id)
+    ordered_duo_ids.extend(
+        aid for aid in api_ids if aid != primary_duo_id and aid in state.target_mapping
+    )
+
+    duo_targets = []
+    seen_duo_emails = set()
+    for aid in ordered_duo_ids:
+        ti = state.target_mapping[aid]
+        target_email = (ti.get("email") or "").strip()
+        if target_email and target_email in seen_duo_emails:
+            continue
+        duo_targets.append((aid, ti))
+        if target_email:
+            seen_duo_emails.add(target_email)
+
+    target_info = duo_targets[0][1] if duo_targets else keyword_target
+
+    # Send emails — one per distinct target email. Duo targets are sent first;
+    # the keyword target is an additional recipient only if its email differs.
     email_results = []
-    if keyword and target_info:
-        primary_ids = [keyword]
-        status = send_automated_target_email(
-            target_info=target_info,
-            domain=domain,
-            all_domains=all_domains,
-            non_cdn_ips=non_cdn_ips,
-            target_api_ids=[],
-            keyword=keyword,
-            matched_keywords=matched_keywords,
-        )
-        email_results.append((target_info["name"], status))
-    else:
-        primary_ids = ids_for_target(
-            api_ids,
-            target_info.get("email") if target_info else None,
-            state.target_mapping,
-        )
-        status = send_automated_target_email(
-            target_info=target_info,
-            domain=domain,
-            all_domains=all_domains,
-            non_cdn_ips=non_cdn_ips,
-            target_api_ids=primary_ids,
-        )
-        email_results.append((target_info["name"] if target_info else "unknown", status))
+    sent_emails = set()
 
-        if len(api_ids) > 1:
-            sent_emails = (
-                {target_info["email"]} if (target_info and target_info.get("email")) else set()
+    for aid, ti in duo_targets:
+        target_email = (ti.get("email") or "").strip()
+        if target_email and target_email in sent_emails:
+            continue
+        ti_ids = ids_for_target(api_ids, target_email, state.target_mapping)
+        status = send_automated_target_email(
+            target_info=ti,
+            domain=domain,
+            all_domains=all_domains,
+            non_cdn_ips=non_cdn_ips,
+            target_api_ids=ti_ids,
+        )
+        email_results.append((ti["name"], status))
+        if target_email:
+            sent_emails.add(target_email)
+
+    if keyword_target:
+        target_email = (keyword_target.get("email") or "").strip()
+        if not target_email or target_email not in sent_emails:
+            status = send_automated_target_email(
+                target_info=keyword_target,
+                domain=domain,
+                all_domains=all_domains,
+                non_cdn_ips=non_cdn_ips,
+                target_api_ids=[],
+                keyword=keyword,
+                matched_keywords=matched_keywords,
             )
-            for aid in api_ids:
-                if aid == api_id:
-                    continue
-                ti = state.target_mapping.get(aid)
-                if ti and ti.get("email") and ti["email"] not in sent_emails:
-                    sent_emails.add(ti["email"])
-                    ti_ids = ids_for_target(api_ids, ti["email"], state.target_mapping)
-                    status = send_automated_target_email(
-                        target_info=ti,
-                        domain=domain,
-                        all_domains=all_domains,
-                        non_cdn_ips=non_cdn_ips,
-                        target_api_ids=ti_ids,
-                    )
-                    email_results.append((ti["name"], status))
+            email_results.append((keyword_target["name"], status))
+            if target_email:
+                sent_emails.add(target_email)
+
+    if not duo_targets and not keyword_target:
+        ti_ids = ids_for_target(api_ids, None, state.target_mapping)
+        status = send_automated_target_email(
+            target_info=None,
+            domain=domain,
+            all_domains=all_domains,
+            non_cdn_ips=non_cdn_ips,
+            target_api_ids=ti_ids,
+        )
+        email_results.append(("unknown", status))
 
     # Build combined email status
     lines = []

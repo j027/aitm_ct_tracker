@@ -378,6 +378,9 @@ def _handle_pattern_match(
     sha256: str | None = None,
     serial_number: str | None = None,
     api_ids: List[str] | None = None,
+    keyword: str | None = None,
+    keyword_match_domains: List[str] | None = None,
+    matched_keywords: List[str] | None = None,
 ) -> bool:
     """Handle pattern match detection. Returns True if alert was sent."""
     log(f"[+] Potential match: {domain}")
@@ -465,7 +468,9 @@ def _handle_pattern_match(
         certkit_url=certkit_url,
         sha256=sha256,
         serial_number=serial_number,
-        matched_keywords=None,
+        matched_keywords=matched_keywords,
+        keyword=keyword,
+        keyword_match_domains=keyword_match_domains,
     )
     return True
 
@@ -677,6 +682,23 @@ def process_message(message_str: str) -> None:
                 matched_keywords=ka_matched_keywords,
             )
         elif matched_patterns:
+            # A pattern match can also carry a keyword for a different
+            # organization (attackers sometimes mix Duo IDs and keywords).
+            # Pass the first keyword match through so both targets are emailed.
+            kw_id = None
+            kw_domains = None
+            kw_matched_keywords = None
+            for candidate_id, candidate_domains in keyword_matches.items():
+                if candidate_id not in state.keyword_targets:
+                    continue
+                kw_id = candidate_id
+                kw_domains = candidate_domains
+                target = state.keyword_targets[candidate_id]
+                kw_matched_keywords = find_matching_keywords(
+                    candidate_domains,
+                    target.get("keywords", [candidate_id]),
+                )
+                break
             _handle_pattern_match(
                 list(matched_patterns.values())[0],
                 all_domains,
@@ -686,6 +708,9 @@ def process_message(message_str: str) -> None:
                 sha256,
                 serial_number,
                 api_ids=all_api_ids,
+                keyword=kw_id,
+                keyword_match_domains=kw_domains,
+                matched_keywords=kw_matched_keywords,
             )
         elif keyword_matches:
             # Keyword-only matches — each unique keyword fires its own

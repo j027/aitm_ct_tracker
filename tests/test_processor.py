@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import threading
+import time
 from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -488,6 +489,77 @@ class TestHandlerCertificateDedup:
         assert first is True
         assert second is False
         assert finalize.call_count == 1
+
+
+class TestPatternKeywordEnrichment:
+    DUO_TARGET = {"name": "Duo University", "email": "duo@example.edu"}
+    KEYWORD_TARGET = {
+        "type": "keyword",
+        "name": "Keyword University",
+        "email": "keyword@example.edu",
+        "keywords": ["examkeyword"],
+    }
+
+    def setup_method(self):
+        self.original_duo = state.state.target_mapping
+        self.original_keyword = state.state.keyword_targets
+        self.original_known_attacker_domains = state.state.known_attacker_domains
+        state.state.alerted_certificates.clear()
+        state.state.known_attacker_domains = set()
+        state.state.target_mapping = {"abcde": self.DUO_TARGET}
+        state.state.keyword_targets = {"examkeyword": self.KEYWORD_TARGET}
+
+    def teardown_method(self):
+        state.state.target_mapping = self.original_duo
+        state.state.keyword_targets = self.original_keyword
+        state.state.known_attacker_domains = self.original_known_attacker_domains
+        state.state.alerted_certificates.clear()
+
+    def _message(self):
+        leaf_cert = {
+            "all_domains": [
+                "api-abcde.evil.example.com",
+                "examkeyword.evil.example.com",
+            ],
+            "issuer": {"aggregated": "/C=US/O=Test/CN=Test"},
+            "serial_number": "ABC123",
+            "not_before": time.time(),
+        }
+        return json.dumps({"message_type": "certificate_update", "data": {"leaf_cert": leaf_cert}})
+
+    def test_pattern_match_forwards_keyword(self):
+        with patch("ct_watcher.processor._handle_pattern_match") as handler:
+            process_message(self._message())
+
+        handler.assert_called_once()
+        kwargs = handler.call_args.kwargs
+        assert kwargs["api_ids"] == ["abcde"]
+        assert kwargs["keyword"] == "examkeyword"
+        assert kwargs["keyword_match_domains"] == ["examkeyword.evil.example.com"]
+        assert kwargs["matched_keywords"] == ["examkeyword"]
+
+    def test_pattern_match_emails_duo_and_keyword_orgs(self):
+        with (
+            patch("ct_watcher.processor.get_nameservers", return_value=(False, [])),
+            patch("ct_watcher.processor.get_domain_info", return_value=(None, None)),
+            patch("ct_watcher.processor.resolve_and_classify", return_value=([], [])),
+            patch("ct_watcher.processor.track_resolved_ips"),
+            patch("ct_watcher.processor.check_duo_hostnames", return_value={}),
+            patch("ct_watcher.processor.send_automated_target_email") as send_email,
+            patch("ct_watcher.processor._dispatch_alert") as dispatch_alert,
+        ):
+            send_email.return_value = EmailSendStatus("sent", "test")
+            process_message(self._message())
+
+        assert send_email.call_count == 2
+        assert [c.kwargs["target_info"]["email"] for c in send_email.call_args_list] == [
+            "duo@example.edu",
+            "keyword@example.edu",
+        ]
+        alert = dispatch_alert.call_args.args[0]
+        assert alert.target_info["email"] == "duo@example.edu"
+        assert alert.keyword == "examkeyword"
+        assert alert.matched_keywords == ["examkeyword"]
 
 
 class TestCertificateAgeGuard:

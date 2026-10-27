@@ -167,6 +167,45 @@ class TestAppriseDuoCheck:
 
         assert "DNS lookup failed" in result
 
+    def test_keyword_and_invalid_duo_render_together(self):
+        result = build_apprise_alert(
+            _make_alert(
+                domain="api-abcde.evil.example.com",
+                all_domains=["api-abcde.evil.example.com", "examkeyword.evil.example.com"],
+                keyword="examkeyword",
+                matched_keywords=["examkeyword"],
+                keyword_match_domains=["examkeyword.evil.example.com"],
+                api_ids=["abcde"],
+                duo_checks={"abcde": DuoCheckResult("invalid", ["54.241.191.167"])},
+                target_info={"name": "Example University", "email": "security@example.edu"},
+            )
+        )
+
+        assert "**Matched keyword(s):**" in result
+        assert "**Duo ID:**" in result
+        assert "**Duo Hostname Check:**" in result
+        assert "api-abcde.duosecurity.com" in result
+        assert "❌ invalid Duo" in result
+
+    def test_keyword_and_valid_duo_render_together(self):
+        result = build_apprise_alert(
+            _make_alert(
+                domain="api-abcde.evil.example.com",
+                all_domains=["api-abcde.evil.example.com", "examkeyword.evil.example.com"],
+                keyword="examkeyword",
+                matched_keywords=["examkeyword"],
+                keyword_match_domains=["examkeyword.evil.example.com"],
+                api_ids=["abcde"],
+                duo_checks={"abcde": DuoCheckResult("valid", ["3.145.240.61"])},
+                target_info={"name": "Example University", "email": "security@example.edu"},
+            )
+        )
+
+        assert "**Matched keyword(s):**" in result
+        assert "**Duo ID:**" in result
+        assert "✅ valid Duo" in result
+        assert "Duo Hostname Check:" not in result
+
 
 class TestAppriseAlertFields:
     """Tests for individual field rendering."""

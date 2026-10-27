@@ -246,6 +246,54 @@ class TestDiscordDuoCheck:
         check_field = [f for f in embed["fields"] if f["name"] == "🔎 Duo Hostname Check"][0]
         assert "DNS lookup failed" in check_field["value"]
 
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_keyword_and_invalid_duo_render_together(self):
+        embed = build_embed(
+            _make_alert(
+                domain="api-abcde.evil.example.com",
+                all_domains=["api-abcde.evil.example.com", "examkeyword.evil.example.com"],
+                keyword="examkeyword",
+                matched_keywords=["examkeyword"],
+                keyword_match_domains=["examkeyword.evil.example.com"],
+                api_ids=["abcde"],
+                duo_checks={"abcde": DuoCheckResult("invalid", ["54.241.191.167"])},
+                target_info={"name": "Example University", "email": "security@example.edu"},
+            )
+        )
+
+        field_names = [f["name"] for f in embed["fields"]]
+        assert "📋 Matched keyword(s)" in field_names
+        assert "🔑 Duo ID" in field_names
+        assert "🔎 Duo Hostname Check" in field_names
+
+        duo_field = [f for f in embed["fields"] if f["name"] == "🔑 Duo ID"][0]
+        assert "❌ invalid Duo" in duo_field["value"]
+        check_field = [f for f in embed["fields"] if f["name"] == "🔎 Duo Hostname Check"][0]
+        assert "api-abcde.duosecurity.com" in check_field["value"]
+
+    @patch("ct_watcher.discord.EMAIL_ENABLED", False)
+    def test_keyword_and_valid_duo_render_together(self):
+        embed = build_embed(
+            _make_alert(
+                domain="api-abcde.evil.example.com",
+                all_domains=["api-abcde.evil.example.com", "examkeyword.evil.example.com"],
+                keyword="examkeyword",
+                matched_keywords=["examkeyword"],
+                keyword_match_domains=["examkeyword.evil.example.com"],
+                api_ids=["abcde"],
+                duo_checks={"abcde": DuoCheckResult("valid", ["3.145.240.61"])},
+                target_info={"name": "Example University", "email": "security@example.edu"},
+            )
+        )
+
+        field_names = [f["name"] for f in embed["fields"]]
+        assert "📋 Matched keyword(s)" in field_names
+        assert "🔑 Duo ID" in field_names
+        assert "🔎 Duo Hostname Check" not in field_names
+
+        duo_field = [f for f in embed["fields"] if f["name"] == "🔑 Duo ID"][0]
+        assert "✅ valid Duo" in duo_field["value"]
+
 
 class TestDiscordEmbedFields:
     """Tests for individual field rendering."""

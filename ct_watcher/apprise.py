@@ -46,7 +46,7 @@ def build_apprise_alert(alert: AlertInfo) -> str:
         if alert.keyword_match_domains:
             kw_block = "\n".join(alert.keyword_match_domains[:20])
             lines.append(f"**Matching Domains:**\n```\n{kw_block}\n```")
-    elif alert.api_ids:
+    if alert.api_ids:
         duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping, alert.duo_checks)
         if targets_str is not None:
             lines.append(f"**Duo IDs:** {duo_str}")

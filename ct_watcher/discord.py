@@ -361,7 +361,7 @@ def build_embed(
                     "inline": False,
                 }
             )
-    elif alert.api_ids:
+    if alert.api_ids:
         duo_str, targets_str = format_duo_ids(alert.api_ids, state.target_mapping, alert.duo_checks)
         if targets_str is not None:
             embed["fields"].append(

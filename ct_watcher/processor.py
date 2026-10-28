@@ -617,7 +617,7 @@ def process_message(message_str: str) -> None:
 
                 if DOMAIN_REGEX.match(domain):
                     aid = extract_target_id(domain)
-                    if aid and not is_common_word_id(aid):
+                    if aid and not is_common_word_id(aid, state.noise_dictionary):
                         if aid not in matched_patterns:
                             matched_patterns[aid] = domain
 

@@ -8,8 +8,8 @@ from typing import Dict, List
 
 from publicsuffixlist import PublicSuffixList
 
-from .config import COMMON_WORDS_5CHAR, COMMON_WORDS_8CHAR, DOMAIN_REGEX
-from .models import DuoCheckResult
+from .config import DOMAIN_REGEX
+from .models import DuoCheckResult, NoiseDictionary
 
 
 def defang_domain(domain: str) -> str:
@@ -28,34 +28,23 @@ def extract_target_id(domain: str) -> str | None:
     return None
 
 
-def is_common_word_id(api_id: str | None) -> bool:
-    """Check if the API ID is a common English word (false positive).
+def is_common_word_id(api_id: str | None, noise: NoiseDictionary) -> bool:
+    """Return True if the API ID is a known common-word false positive.
 
-    Returns True if the ID appears to be a common word and should be filtered.
-    Returns False if:
-      - The ID contains digits (intentional obfuscation like 'admin1')
-      - The ID is not in our common words list
+    Exact dictionary entries are checked first, then explicit ``word#``
+    digit patterns. IDs containing digits that are not explicitly listed
+    are left alone because attackers mangle real Duo IDs.
     """
     if not api_id:
         return False
 
-    api_id_lower = api_id.lower()
-
-    # If it contains any digits, it's likely intentional (e.g., 'adm1n')
-    # These should NOT be filtered - they look like target IDs
-    if any(c.isdigit() for c in api_id_lower):
-        return False
-
-    # Check against our word lists based on length
-    if len(api_id_lower) == 5:
-        return api_id_lower in COMMON_WORDS_5CHAR
-    elif len(api_id_lower) == 8:
-        return api_id_lower in COMMON_WORDS_8CHAR
-
-    return False
+    candidate = api_id.lower()
+    if candidate in noise.words:
+        return True
+    return any(pattern.fullmatch(candidate) for pattern in noise.patterns)
 
 
-def extract_all_target_ids(all_domains: List[str]) -> Dict[str, str]:
+def extract_all_target_ids(all_domains: List[str], noise: NoiseDictionary) -> Dict[str, str]:
     """Extract all unique Duo api-IDs from a certificate's domain list.
 
     Scans every domain for an ``api-<ID>.`` pattern, filters out common-word
@@ -71,7 +60,7 @@ def extract_all_target_ids(all_domains: List[str]) -> Dict[str, str]:
         if not DOMAIN_REGEX.match(domain):
             continue
         api_id = extract_target_id(domain)
-        if not api_id or is_common_word_id(api_id):
+        if not api_id or is_common_word_id(api_id, noise):
             continue
         if api_id not in results:
             results[api_id] = domain

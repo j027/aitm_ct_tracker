@@ -82,6 +82,21 @@ class TestMatchKeywordTargets:
         result = match_keyword_targets(domains, kt)
         assert result == {}
 
+    def test_mangled_duo_id_matches_on_new_domain(self):
+        domains = ["api-a1b2c.new-attacker.example"]
+        kt = {
+            "university": {
+                "type": "keyword",
+                "name": "Example University",
+                "email": "security@example.edu",
+                "keywords": ["api-a1b2c", "shibbolethmainexample"],
+            }
+        }
+
+        result = match_keyword_targets(domains, kt)
+
+        assert result == {"university": ["api-a1b2c.new-attacker.example"]}
+
     def test_keyword_falls_back_to_id(self):
         domains = ["adfmorgan.evil.example.com"]
         kt = {

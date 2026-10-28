@@ -106,50 +106,86 @@ class TestIsCommonWordId:
     @pytest.mark.parametrize(
         "api_id",
         [
-            "admin",
-            "local",
-            "store",
-            "stage",
-            "stats",
-            "proxy",
-            "cache",
-            "queue",
-            "media",
-            "video",
-            "audio",
-            "cloud",
-            "login",
-            "oauth",
-            "token",
-            "debug",
-            "fetch",
-            "route",
-            "error",
-            "start",
+            "cabal",
+            "check",
+            "email",
+            "nexus",
+            "quote",
+            "relay",
+            "teste",
+            "testi",
+            "tools",
         ],
     )
-    def test_filters_5char_common_words(self, api_id):
-        assert is_common_word_id(api_id) is True
+    def test_filters_5char_common_words(self, api_id, noise_dictionary):
+        assert is_common_word_id(api_id, noise_dictionary) is True
 
     @pytest.mark.parametrize(
         "api_id",
         [
-            "internal",
-            "external",
-            "platform",
-            "services",
-            "database",
-            "security",
-            "settings",
-            "products",
-            "download",
-            "callback",
-            "schedule",
-            "complete",
+            "agenda",
+            "backup",
+            "canary",
+            "client",
+            "global",
+            "mobile",
+            "origin",
+            "portal",
+            "public",
+            "server",
         ],
     )
-    def test_filters_8char_common_words(self, api_id):
-        assert is_common_word_id(api_id) is True
+    def test_filters_6char_common_words(self, api_id, noise_dictionary):
+        assert is_common_word_id(api_id, noise_dictionary) is True
+
+    @pytest.mark.parametrize(
+        "api_id",
+        [
+            "backend",
+            "gateway",
+            "manager",
+            "partner",
+            "preprod",
+            "preview",
+            "private",
+            "service",
+            "staging",
+            "storage",
+            "testing",
+            "toolbox",
+        ],
+    )
+    def test_filters_7char_common_words(self, api_id, noise_dictionary):
+        assert is_common_word_id(api_id, noise_dictionary) is True
+
+    @pytest.mark.parametrize(
+        "api_id",
+        [
+            "constant",
+            "decision",
+            "identity",
+            "partners",
+            "training",
+        ],
+    )
+    def test_filters_8char_common_words(self, api_id, noise_dictionary):
+        assert is_common_word_id(api_id, noise_dictionary) is True
+
+    @pytest.mark.parametrize(
+        "api_id",
+        [
+            "staging1",
+            "staging2",
+            "test1",
+            "test22",
+            "preprod2",
+            "prod01",
+            "dev01",
+            "uat03",
+        ],
+    )
+    def test_filters_explicit_digit_patterns(self, api_id, noise_dictionary):
+        assert is_common_word_id(api_id, noise_dictionary) is True
 
     @pytest.mark.parametrize(
         "api_id",
@@ -161,10 +197,11 @@ class TestIsCommonWordId:
             "62a1edm3",
             "529aed63",
             "a540f86",
+            "stagingx",
         ],
     )
-    def test_does_not_filter_ids_with_digits(self, api_id):
-        assert is_common_word_id(api_id) is False
+    def test_does_not_filter_ids_with_digits(self, api_id, noise_dictionary):
+        assert is_common_word_id(api_id, noise_dictionary) is False
 
     @pytest.mark.parametrize(
         "api_id",
@@ -177,75 +214,75 @@ class TestIsCommonWordId:
             "abcdefgh",
         ],
     )
-    def test_does_not_filter_unknown_words(self, api_id):
-        assert is_common_word_id(api_id) is False
+    def test_does_not_filter_unknown_words(self, api_id, noise_dictionary):
+        assert is_common_word_id(api_id, noise_dictionary) is False
 
-    def test_empty_string(self):
-        assert is_common_word_id("") is False
-        assert is_common_word_id(None) is False
+    def test_empty_string(self, noise_dictionary):
+        assert is_common_word_id("", noise_dictionary) is False
+        assert is_common_word_id(None, noise_dictionary) is False
 
 
 class TestExtractAllTargetIds:
     """Tests for extract_all_target_ids multi-ID extraction."""
 
-    def test_single_id(self):
+    def test_single_id(self, noise_dictionary):
         domains = ["api-3dse1.phish.example.com", "www.phish.example.com"]
-        result = extract_all_target_ids(domains)
+        result = extract_all_target_ids(domains, noise_dictionary)
         assert result == {"3dse1": "api-3dse1.phish.example.com"}
 
-    def test_multiple_ids(self):
+    def test_multiple_ids(self, noise_dictionary):
         domains = [
             "api-1d0c2651.mdj.example.com",
             "api-62a1edm3.mdj.example.com",
             "other.mdj.example.com",
         ]
-        result = extract_all_target_ids(domains)
+        result = extract_all_target_ids(domains, noise_dictionary)
         assert result == {
             "1d0c2651": "api-1d0c2651.mdj.example.com",
             "62a1edm3": "api-62a1edm3.mdj.example.com",
         }
 
-    def test_duplicate_ids_use_first_domain(self):
+    def test_duplicate_ids_use_first_domain(self, noise_dictionary):
         domains = [
             "api-3dse1.first.example.com",
             "api-3dse1.second.example.com",
         ]
-        result = extract_all_target_ids(domains)
+        result = extract_all_target_ids(domains, noise_dictionary)
         assert result == {"3dse1": "api-3dse1.first.example.com"}
 
-    def test_filters_common_words(self):
-        domains = ["api-admin.example.com", "api-3dse1.example.com"]
-        result = extract_all_target_ids(domains)
+    def test_filters_common_words(self, noise_dictionary):
+        domains = ["api-staging.example.com", "api-3dse1.example.com"]
+        result = extract_all_target_ids(domains, noise_dictionary)
         assert result == {"3dse1": "api-3dse1.example.com"}
 
-    def test_empty_domains(self):
-        assert extract_all_target_ids([]) == {}
+    def test_empty_domains(self, noise_dictionary):
+        assert extract_all_target_ids([], noise_dictionary) == {}
 
-    def test_no_matches(self):
+    def test_no_matches(self, noise_dictionary):
         domains = ["www.example.com", "mail.example.com"]
-        assert extract_all_target_ids(domains) == {}
+        assert extract_all_target_ids(domains, noise_dictionary) == {}
 
-    def test_ids_with_digits_not_filtered(self):
+    def test_ids_with_digits_not_filtered(self, noise_dictionary):
         domains = ["api-adm1n.example.com", "api-3dse1.example.com"]
-        result = extract_all_target_ids(domains)
+        result = extract_all_target_ids(domains, noise_dictionary)
         assert "adm1n" in result
         assert "3dse1" in result
 
-    def test_case_insensitive(self):
+    def test_case_insensitive(self, noise_dictionary):
         domains = ["API-3DSE1.example.com", "api-62a1edm3.EXAMPLE.com"]
-        result = extract_all_target_ids(domains)
+        result = extract_all_target_ids(domains, noise_dictionary)
         assert result == {
             "3dse1": "api-3dse1.example.com",
             "62a1edm3": "api-62a1edm3.example.com",
         }
 
-    def test_known_attacker_domains_are_included(self):
+    def test_known_attacker_domains_are_included(self, noise_dictionary):
         domains = [
             "known-bad-non-api.phish.com",
             "api-3dse1.phish.com",
             "api-62a1edm3.phish.com",
         ]
-        result = extract_all_target_ids(domains)
+        result = extract_all_target_ids(domains, noise_dictionary)
         assert result == {
             "3dse1": "api-3dse1.phish.com",
             "62a1edm3": "api-62a1edm3.phish.com",

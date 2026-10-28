@@ -11,6 +11,7 @@ Monitors certificate transparency logs for AitM phishing infrastructure. Tracks 
 | `expired_domains.txt` | Expired/unregistered attacker domains. Watcher silently skips these. Managed by `expiry_checker.py`. |
 | `known_ips.txt` | Known attacker IPs, so low-confidence matches resolving here are upgraded. |
 | `watched_org_ids.txt` | Optional. Org IDs (one per line) whose alerts are also sent to `DISCORD_WEBHOOK_WATCHED`. |
+| `noise_words.txt` | Common `api-<id>` words to ignore, plus explicit trailing-digit patterns. Hot-reloaded. |
 
 `targets.json` supports three entry formats:
 

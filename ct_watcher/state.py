@@ -4,6 +4,8 @@ import threading
 from dataclasses import dataclass, field
 from typing import Dict, Set, Any, Tuple
 
+from .models import NoiseDictionary
+
 
 @dataclass
 class WatcherState:
@@ -22,6 +24,9 @@ class WatcherState:
         default_factory=lambda: {"ips": {}, "last_updated": None}
     )
     watched_org_ids: Set[str] = field(default_factory=set)
+    noise_dictionary: NoiseDictionary = field(
+        default_factory=lambda: NoiseDictionary(frozenset(), ())
+    )
 
     # Stats
     cert_count: int = 0

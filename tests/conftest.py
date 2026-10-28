@@ -9,7 +9,9 @@ from ct_watcher.loaders import (
     load_target_mapping,
     load_known_attacker_domains,
     load_known_attacker_ips,
+    load_noise_words,
 )
+from ct_watcher.state import state
 
 
 @pytest.fixture(scope="session")
@@ -36,3 +38,15 @@ def known_attacker_domains():
 def known_attacker_ips():
     """Load known attacker IPs. Returns empty set if file missing."""
     return load_known_attacker_ips()
+
+
+@pytest.fixture(scope="session")
+def noise_dictionary():
+    """Load the shipped noise dictionary once for the test session."""
+    return load_noise_words()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _load_noise_dictionary(noise_dictionary):
+    """Ensure process_message sees the shipped dictionary in all tests."""
+    state.noise_dictionary = noise_dictionary

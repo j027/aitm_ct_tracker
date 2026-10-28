@@ -10,6 +10,7 @@ from .loaders import (
     load_email_template,
     load_attacker_ips,
     load_watched_org_ids,
+    load_noise_words,
 )
 from .cdn_fetcher import load_cdn_networks, log_cdn_stats
 from .websocket_client import run_websocket_client
@@ -28,6 +29,7 @@ def main() -> None:
     state.email_template = load_email_template()
     state.attacker_ips_data = load_attacker_ips()
     state.watched_org_ids = load_watched_org_ids()
+    state.noise_dictionary = load_noise_words()
 
     # Load dynamic CDN ranges
     provider_ranges, networks = load_cdn_networks()

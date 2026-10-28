@@ -3,6 +3,7 @@
 import json
 import os
 import ipaddress
+import re
 from typing import Dict, List, Optional, Set, Any
 
 from .config import (
@@ -12,8 +13,10 @@ from .config import (
     ATTACKER_IPS_FILE,
     KNOWN_IPS_FILE,
     WATCHED_ORG_IDS_FILE,
+    NOISE_WORDS_FILE,
 )
 from .console import log
+from .models import NoiseDictionary
 
 DEFAULT_EMAIL_TEMPLATE = """To the Security Team,
 
@@ -28,6 +31,56 @@ IOCs:
 Context: Likely staging for a credential harvesting campaign. Recommended block on network edge.
 
 Regards"""
+
+_EXACT_NOISE_WORD_RE = re.compile(r"^[0-9a-z]{5,8}$")
+_NOISE_PATTERN_RE = re.compile(r"^[a-z]{1,7}#$")
+
+
+def load_noise_words(filepath: str = NOISE_WORDS_FILE) -> NoiseDictionary:
+    """Load the api-<id> false-positive dictionary.
+
+    Expected format: one exact word (5-8 characters) per line, or ``word#``
+    to match one or more trailing digits. Blank lines and lines starting
+    with ``#`` are ignored. Missing or malformed files raise so a typo
+    cannot silently disable noise filtering.
+    """
+    if not os.path.exists(filepath):
+        raise FileNotFoundError(f"Noise dictionary not found: {filepath}")
+
+    words: Set[str] = set()
+    patterns: List[re.Pattern] = []
+    seen: Set[str] = set()
+
+    with open(filepath, "r") as f:
+        for line_number, raw_line in enumerate(f, start=1):
+            entry = raw_line.strip().lower()
+            if not entry or entry.startswith("#"):
+                continue
+            if entry in seen:
+                raise ValueError(f"{filepath}:{line_number}: duplicate entry {entry!r}")
+            seen.add(entry)
+
+            if entry.endswith("#"):
+                if not _NOISE_PATTERN_RE.fullmatch(entry):
+                    raise ValueError(
+                        f"{filepath}:{line_number}: invalid pattern {entry!r}; "
+                        "expected 1-7 lowercase letters followed by '#'"
+                    )
+                base = entry[:-1]
+                patterns.append(re.compile(rf"^{re.escape(base)}\d+$"))
+            else:
+                if not _EXACT_NOISE_WORD_RE.fullmatch(entry):
+                    raise ValueError(
+                        f"{filepath}:{line_number}: invalid word {entry!r}; "
+                        "expected 5-8 lowercase letters/digits"
+                    )
+                words.add(entry)
+
+    if not words and not patterns:
+        raise ValueError(f"Noise dictionary is empty: {filepath}")
+
+    log(f"[*] Loaded {len(words)} noise words and {len(patterns)} digit patterns")
+    return NoiseDictionary(frozenset(words), tuple(patterns))
 
 
 def load_known_attacker_domains(filepath: str = KNOWN_DOMAINS_FILE) -> Set[str]:

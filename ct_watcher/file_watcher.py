@@ -9,6 +9,7 @@ from .config import (
     TARGETS_FILE,
     WATCHED_ORG_IDS_FILE,
     EMAIL_TEMPLATE_FILE,
+    NOISE_WORDS_FILE,
 )
 from .state import state
 from .loaders import (
@@ -17,7 +18,9 @@ from .loaders import (
     load_target_mapping,
     load_watched_org_ids,
     load_email_template,
+    load_noise_words,
 )
+from .console import log
 
 CHECK_INTERVAL = 5
 
@@ -27,6 +30,7 @@ _WATCHED = (
     (TARGETS_FILE, None, load_target_mapping, True),
     (WATCHED_ORG_IDS_FILE, "watched_org_ids", load_watched_org_ids, False),
     (EMAIL_TEMPLATE_FILE, "email_template", load_email_template, False),
+    (NOISE_WORDS_FILE, "noise_dictionary", load_noise_words, False),
 )
 
 
@@ -54,5 +58,5 @@ async def start_file_watcher() -> None:
                 else:
                     result = await asyncio.to_thread(loader)
                     setattr(state, attr, result)
-            except Exception:
-                pass
+            except Exception as e:
+                log(f"[!] Error reloading {filepath}: {e}")

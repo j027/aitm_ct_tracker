@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, FrozenSet, List, Tuple
+
+
+@dataclass(frozen=True)
+class NoiseDictionary:
+    """Common api-<id> words and explicit digit-suffix patterns to ignore."""
+
+    words: FrozenSet[str]
+    patterns: Tuple[re.Pattern, ...]
 
 
 @dataclass(frozen=True)
